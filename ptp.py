@@ -7,7 +7,6 @@
 # but "unspecified I/O error -1" appears - FIXME
 # try: create a folder and then put files in this folder
 # maybe then files can be deleted
-# fixme: gphoto2 should show only one directory, not root?
 
 # protocol info:
 # see libgphoto2/camlibs/ptp2
@@ -666,7 +665,7 @@ def CANON_GetObjectInfoEx(cnt):
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
 # opcodes starting from 0x1000 - callback functions
-# more in gphoto2 ptp.h and ptp.c
+# more in libgphoto2 ptp.h and ptp.c
 ptp_opcode_cb = {
   0x1000:Undefined,
   0x1001:GetDeviceInfo,
