@@ -398,8 +398,7 @@ def GetDeviceInfo(cnt):
   deviceversion=ucs2_string(VERSION+b"\0")
   serialnumber=ucs2_string(SERIAL+b"\0")
   data=header+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
-  len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-  length=len1
+  length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
@@ -419,10 +418,8 @@ def GetStorageIDs(cnt):
   # each element can be any unique integer
   # actually a storage drive id
   data=uint32_array([0x10001])
-  len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-  # add OK response after data, send in one transaction
-  len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-  length=len1+len2
+  length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+  respond_ok()
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
@@ -453,10 +450,8 @@ def GetStorageInfo(cnt):
   VolumeLabel=ucs2_string(VOLUME+b"\0")
   hdr=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
   data=hdr+StorageDescription+VolumeLabel
-  len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-  # add OK response after data, send in one transaction
-  len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-  length=len1+len2
+  length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+  respond_ok()
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
@@ -479,16 +474,12 @@ def GetObjectHandles(cnt):
     # each element can be any unique integer
     # actually a file id
     data=uint32_array([0xd1]) # 0xd1 directory
-    len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    # add OK response after data, send in one transaction
-    len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-    length=len1+len2
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
   elif p3==0xd1:
     data=uint32_array([0xf1,0xf2])
-    len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    # add OK response after data, send in one transaction
-    len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-    length=len1+len2
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
   else:
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
@@ -537,10 +528,8 @@ def GetObjectInfo(cnt):
     name=ucs2_string(b"DIR\0")
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     #data=header+name+b"\0\0\0"
-    len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    # add OK response after data, send in one transaction
-    len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-    length=len1+len2
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
   elif p1==0xf1: # first file objecthandle_array[0]
     ObjectFormat=PTP_OFC_Text
     ParentObject=1
@@ -549,10 +538,8 @@ def GetObjectInfo(cnt):
     name=ucs2_string(b"F1.TXT\0")
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     #data=header+name+b"\0\0\0"
-    len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    # add OK response after data, send in one transaction
-    len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-    length=len1+len2
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
   elif p1==0xf2: # second file objecthandle_array[1]
     ObjectFormat=PTP_OFC_Text
     ParentObject=1
@@ -561,10 +548,8 @@ def GetObjectInfo(cnt):
     name=ucs2_string(b"F2.TXT\0")
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     #data=header+name+b"\0\0\0"
-    len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    # add OK response after data, send in one transaction
-    len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-    length=len1+len2
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
   else:
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
@@ -582,16 +567,12 @@ def GetObject(cnt):
   print("p1=%08x" % p1)
   if p1==0xf1: # first file objecthandle_array[0]
     data=b"file1\n"
-    len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    # add OK response after data, send in one transaction
-    len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-    length=len1+len2
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
   elif p1==0xf2: # second file objecthandle_array[1]
     data=b"file2\n"
-    len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    # add OK response after data, send in one transaction
-    len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-    length=len1+len2
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
   else:
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
@@ -785,6 +766,8 @@ def _xfer_cb(ep_addr, result, xferred_bytes):
         # prepare full buffer to read
         # for next host OUT command
         if next_response_ok[0]:
+          print(">",end="")
+          print_hex(send_response_ok)
           usbd.submit_xfer(I0_EP1_IN, send_response_ok)
           next_response_ok[0]=0 # flag consumed, prevents recurring
         else:
