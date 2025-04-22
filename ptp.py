@@ -64,6 +64,17 @@ I0_EP1_IN=const(0x81)
 I0_EP1_OUT=const(0x01)
 I0_EP2_IN=const(0x82)
 
+# device textual appearance
+MANUFACTURER=b"iManufacturer"
+PRODUCT=b"iProduct"
+SERIAL=b"iSerial"
+CONFIGURATION=b"iConfiguration"
+INTERFACE0=b"iInterface0"
+INTERFACE1=b"iInterface1"
+VERSION=b"3.1.8"
+STORAGE=b"iStorage"
+VOLUME=b"iVolume"
+
 # PTP
 # USB Still Image Capture Class defines
 USB_CLASS_IMAGE=const(6)
@@ -154,12 +165,12 @@ I0_EP2_IN,  # 2 bEndpointAddress
 
 # USB strings.
 _desc_strs = {
-1: b"iManufacturer",
-2: b"iProduct",
-3: b"iSerial",
-4: b"iConfiguration",
-5: b"iInterface0",
-6: b"iInterface1",
+1: MANUFACTURER,
+2: PRODUCT,
+3: SERIAL,
+4: CONFIGURATION,
+5: INTERFACE0,
+6: INTERFACE1,
 }
 # USB constants for bmRequestType.
 USB_REQ_RECIP_INTERFACE = 0x01
@@ -335,6 +346,7 @@ PTP_EC_CancelTransaction=const(0x4001)
 PTP_DPC_DateTime=const(0x5011)
 # image formats 
 PTP_OFC_Undefined=const(0x3000)
+PTP_OFC_Directory=const(0x3001)
 PTP_OFC_Defined=const(0x3800)
 PTP_OFC_Executable=const(0x3003)
 PTP_OFC_Text=const(0x3004)
@@ -357,7 +369,7 @@ def GetDeviceInfo(cnt):
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x1001
   # prepare response: device info standard 1.00 = 100
-  header=struct.pack("<HIHBH", 100, 0, 0, 0, 0)
+  header=struct.pack("<HIHBH", 100, 6, 100, 0, 0)
   operations=uint16_array((\
   0x1001,0x1002,0x1003,0x1004,\
   0x1005,0x1006,0x1007,0x1008,\
@@ -371,10 +383,10 @@ def GetDeviceInfo(cnt):
   PTP_OFC_EXIF_JPEG,\
   PTP_OFC_WAV,\
   PTP_OFC_Defined,))
-  manufacturer=ucs2_string(b"EMARD\0")
-  model=ucs2_string(b"ULX3S\0")
-  deviceversion=ucs2_string(b"3.1.8\0")
-  serialnumber=ucs2_string(b"12345678\0")
+  manufacturer=ucs2_string(MANUFACTURER+b"\0")
+  model=ucs2_string(PRODUCT+b"\0")
+  deviceversion=ucs2_string(VERSION+b"\0")
+  serialnumber=ucs2_string(SERIAL+b"\0")
   data=header+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
   len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   # add OK response after data, send in one transaction
@@ -428,8 +440,8 @@ def GetStorageInfo(cnt):
   MaxCapability=0x1000000
   FreeSpaceInBytes=0xF00000
   FreeSpaceInImages=0x10000
-  StorageDescription=ucs2_string(b"STORAGE")
-  VolumeLabel=ucs2_string(b"VOLUME")
+  StorageDescription=ucs2_string(STORAGE+b"\0")
+  VolumeLabel=ucs2_string(VOLUME+b"\0")
   hdr=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
   data=hdr+StorageDescription+VolumeLabel
   len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
@@ -449,14 +461,20 @@ def GetObjectHandles(cnt):
   opcode=unpack_opcode(cnt) # always 0x1007
   # unpack 3 parameters
   p1,p2,p3=struct.unpack("<III",cnt[12:24])
-  print("%08x %08x %08x" % (p1,p2,p3))
+  print("p1=%08x p2=%08x p3=%08x" % (p1,p2,p3))
   # prepare response depending on p1-3 parameters
-  if p1==0xFFFFFFFF or p1==0x10001:
+  if p3==0xFFFFFFFF or p3==0x10001: # root directory
     # actually a PTP array
     # first 32-bit is length (number of elements, actually files or directories)
     # rest are elements of 32-bits
     # each element can be any unique integer
     # actually a file id
+    data=uint32_array([0xd1]) # 0xd1 directory
+    len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    # add OK response after data, send in one transaction
+    len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+    length=len1+len2
+  elif p3==0xd1:
     data=uint32_array([0xf1,0xf2])
     len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     # add OK response after data, send in one transaction
@@ -495,14 +513,28 @@ def GetObjectInfo(cnt):
   opcode=unpack_opcode(cnt) # always 0x1008
   p1,=struct.unpack("<I",cnt[12:16])
   print("p1=%08x" % p1)
-  StorageID=0x00010001
+  StorageID=0x10001
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
   ObjectSize=6
   thumb_image_null=bytearray(26)
   ParentObject=0
   assoc_seq_null=bytearray(10)
-  if p1==0xf1: # first file objecthandle_array[0]
+  if p1==0xd1: # first directory
+    ObjectFormat=PTP_OFC_Directory
+    ParentObject=0
+    hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
+    hdr2=struct.pack("<I",ParentObject)
+    name=ucs2_string(b"DIR\0")
+    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
+    #data=header+name+b"\0\0\0"
+    len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    # add OK response after data, send in one transaction
+    len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+    length=len1+len2
+  elif p1==0xf1: # first file objecthandle_array[0]
+    ObjectFormat=PTP_OFC_Text
+    ParentObject=1
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
     name=ucs2_string(b"F1.TXT\0")
@@ -513,6 +545,8 @@ def GetObjectInfo(cnt):
     len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
     length=len1+len2
   elif p1==0xf2: # second file objecthandle_array[1]
+    ObjectFormat=PTP_OFC_Text
+    ParentObject=1
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
     name=ucs2_string(b"F2.TXT\0")
