@@ -388,6 +388,7 @@ def GetDeviceInfo(cnt):
   deviceprops=uint16_array((PTP_DPC_DateTime,))
   captureformats=uint16_array((PTP_OFC_EXIF_JPEG,))
   imageformats=uint16_array((\
+  PTP_OFC_Undefined,\
   PTP_OFC_Text,\
   PTP_OFC_HTML,\
   PTP_OFC_EXIF_JPEG,\
