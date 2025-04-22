@@ -322,6 +322,16 @@ def ucs2_string(s):
 def uint32_array(a):
   return struct.pack("<I"+"I"*len(a),len(a),*a)
 
+next_response_ok=bytearray(1)
+send_response_ok=bytearray(12)
+
+# after one IN submit another with response OK
+def respond_ok():
+  PTP_CNT_INIT(send_response_ok,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+  # flag for USB callback to naxt time send
+  # USB IN response_ok instead of read from host with USB OUT
+  next_response_ok[0]=1
+
 def OpenSession(cnt):
   global txid,sesid,opcode
   #print("OpenSession")
@@ -389,9 +399,8 @@ def GetDeviceInfo(cnt):
   serialnumber=ucs2_string(SERIAL+b"\0")
   data=header+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
   len1=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-  # add OK response after data, send in one transaction
-  len2=PTP_CNT_INIT(memoryview(i0_usbd_buf)[len1:len1+12],PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-  length=len1+len2
+  length=len1
+  respond_ok()
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
@@ -775,7 +784,11 @@ def _xfer_cb(ep_addr, result, xferred_bytes):
         # we have sent our data to host with IN command
         # prepare full buffer to read
         # for next host OUT command
-        usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
+        if next_response_ok[0]:
+          usbd.submit_xfer(I0_EP1_IN, send_response_ok)
+          next_response_ok[0]=0 # flag consumed, prevents recurring
+        else:
+          usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
     #print("_xfer_cb", ep_addr, result, xferred_bytes, i0_usbd_buf[:xferred_bytes])
 
 # Switch the USB device to our custom USB driver.
