@@ -640,21 +640,22 @@ def SendObject(cnt):
     # prepare full buffer to read again from host
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
   if type==PTP_USB_CONTAINER_DATA: # 2
+    # suppose we are overwritting file id 0xf1 F1.TXT
     # host has just sent data
     # load interrupt response of object changed
-    # suppose we are overwritting file id 0xf1 F1.TXT
-    # reply OK to host
-    
+
+    # first sched irq and after irq reply ok to host
+    # report object 0xf1 (F1.TXT) changed
+    length_irq_response[0]=PTP_CNT_INIT(send_irq_response,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,0xf1)
+    print("irq>",end="")
+    print_hex(send_irq_response[:length_irq_response[0]])
+    usbd.submit_xfer(I0_EP2_IN, memoryview(send_irq_response)[:length_irq_response[0]])
+
+    # after irq reply OK to host
     #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
     #print(">",end="")
     #print_hex(i0_usbd_buf[:length])
     #usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
-
-    length_irq_response[0]=PTP_CNT_INIT(send_irq_response,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,0xf1)
-    print("sched irq>",end="")
-    print_hex(send_irq_response[:length_irq_response[0]])
-    #usbd.submit_xfer(I0_EP2_IN, memoryview(send_irq_response)[:length_irq_response[0]])
-    #length_irq_response[0]=0
 
 def CloseSession(cnt):
   print("CloseSession")
@@ -789,12 +790,13 @@ def _xfer_cb(ep_addr, result, xferred_bytes):
           length_response[0]=0 # flag consumed, prevents recurring
         else:
           usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
-    elif ep_addr == I0_EP2_IN:
-        if length_irq_response[0]:
-          print("irq>",end="")
-          print_hex(send_irq_response[:length_irq_response[0]])
-          usbd.submit_xfer(I0_EP2_IN, send_irq_response[:length_irq_response[0]])
-          length_irq_response[0]=0 # flag consumed, prevents recurring
+    elif ep_addr == I0_EP2_IN: # IRQ
+        # after IRQ data sent reply OK to host
+        length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+        print("after_irq>",end="")
+        print_hex(i0_usbd_buf[:length])
+        usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+
     #print("_xfer_cb", ep_addr, result, xferred_bytes, i0_usbd_buf[:xferred_bytes])
 
 # Switch the USB device to our custom USB driver.
