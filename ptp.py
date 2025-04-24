@@ -1,15 +1,17 @@
 # micropython PTP USB still image device
-# creates 2 files in root directory
+# creates 2 files in DIR directory
 # F1.TXT and F2.TXT
-# by clicking file content appears
-# dummy placeholder function to delete a file
+# directory browsing and reading file content works
+# there is dummy placeholder function to delete a file
+# delete succeeds but file re-appears later
+
 # sending file "works" from protocol point of view
 # but "unspecified I/O error -1" appears - FIXME
-# try: create a folder and then put files in this folder
-# maybe then files can be deleted
 
 # protocol info:
-# see libgphoto2/camlibs/ptp2
+# git clone https://github.com/gphoto/libgphoto2
+# cd libgphoto2/camlibs/ptp2
+# files ptp-pack.c ptp.c ptp.h
 # https://github.com/gphoto/libgphoto2/tree/master/camlibs/ptp2
 # https://github.com/capaulson/pyptp
 # https://forum.arduino.cc/t/using-ptp-to-control-camera-on-m0-board/898849
