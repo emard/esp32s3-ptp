@@ -2,7 +2,8 @@
 
 Micropython implementation of USB PTP (picture transfer) protocol for esp32s3.
 esp32s3 acts like still image camera to present a simple file-based filesystem
-to the host. Filesystem is not block based like FAT.
+to the host. Filesystem is not block based like FAT so it doesn't need some
+"eject" or "clean unmount" before unplugging.
 
 # Linux
 
