@@ -11,16 +11,14 @@ On linux PTP filesystem can be accessed by commandline "gphoto2"
 or mounted by gphotofs which I haven't yet tried.
 
 Currently there is small issue with writing a file, I think
-protocol succeeds but some folder structure has to be correctly
-set for file write to succeed without final "unspecified error -1".
-
-Maybe I have to separate packet with OK response, currently
-both are sent as one USB packet.
+protocol succeeds but a correct final response has to be 
+sent for linux gphoto2 to correctly succeed without final
+"unspecified error -1".
 
 # Windows
 
 Currently it doesn't work.
+
 After device sends "GetDeviceInfo" windows don't
 send any further IN/OUT request to EP1/EP2.
 Windows send some control transfers to EP0 though.
-
