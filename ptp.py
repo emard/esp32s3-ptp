@@ -646,10 +646,10 @@ def SendObject(cnt):
 
     # first sched irq and after irq reply ok to host
     # report object 0xf1 (F1.TXT) changed
-    length_irq_response[0]=PTP_CNT_INIT(send_irq_response,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,0xf1)
+    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,0xf1)
     print("irq>",end="")
-    print_hex(send_irq_response[:length_irq_response[0]])
-    usbd.submit_xfer(I0_EP2_IN, memoryview(send_irq_response)[:length_irq_response[0]])
+    print_hex(i0_usbd_buf[:length])
+    usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:length])
 
     # after irq reply OK to host
     #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
