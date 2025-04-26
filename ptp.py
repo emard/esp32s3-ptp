@@ -44,7 +44,7 @@
 # udev rule is needed for user
 # to access the custom USB device.
 
-import machine, struct
+import machine, struct, time
 from micropython import const
 
 # VID and PID of the USB device.
@@ -317,7 +317,9 @@ def uint16_array(a):
 
 # pack a bytearray string as 16-bit ucs2 string for device info
 def ucs2_string(s):
-  return struct.pack("<B"+"H"*len(s),len(s),*s)
+  if len(s):
+    return struct.pack("<B"+"H"*len(s),len(s),*s)
+  return b"\0"
 
 # objecthandle array
 def uint32_array(a):
@@ -511,9 +513,11 @@ def GetObjectHandles(cnt):
 # PTP_oi_SequenceNumber		48
 # PTP_oi_filenamelen		52
 # PTP_oi_Filename               53
+counter=1
 
 def GetObjectInfo(cnt):
   global txid,opcode
+  global counter
   print("GetObjectInfo")
   print("<",end="")
   print_hex(cnt)
@@ -544,7 +548,10 @@ def GetObjectInfo(cnt):
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
     name=ucs2_string(b"F1.TXT\0")
-    create=b"\0"
+    #create=b"\0" # if we don't provide file time info
+    year, month, day, hour, minute, second, weekday, yearday = time.localtime()
+    # create/modify report as current date (file constantly changes date)
+    create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
     #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
     modify=create
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
@@ -557,8 +564,8 @@ def GetObjectInfo(cnt):
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
     name=ucs2_string(b"F2.TXT\0")
-    create=b"\0"
-    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
+    #create=b"\0" # if we don't provide file time info
+    create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
     modify=create # same as above
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     #data=header+name+b"\0\0\0"
