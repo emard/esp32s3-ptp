@@ -534,7 +534,7 @@ def GetObjectInfo(cnt):
   assoc_seq_null=bytearray(10)
   if p1==0xd1: # first directory
     ObjectFormat=PTP_OFC_Directory
-    ParentObject=0
+    ParentObject=0 # 0 means this file is in root directory
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
     name=ucs2_string(b"DIR\0")
@@ -544,7 +544,7 @@ def GetObjectInfo(cnt):
     respond_ok()
   elif p1==0xf1: # first file objecthandle_array[0]
     ObjectFormat=PTP_OFC_Text
-    ParentObject=1
+    ParentObject=0xd1 # directory id where this file is
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
     name=ucs2_string(b"F1.TXT\0")
@@ -560,7 +560,7 @@ def GetObjectInfo(cnt):
     respond_ok()
   elif p1==0xf2: # second file objecthandle_array[1]
     ObjectFormat=PTP_OFC_Text
-    ParentObject=1
+    ParentObject=0xd1 # directory id where this file is
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
     name=ucs2_string(b"F2.TXT\0")
