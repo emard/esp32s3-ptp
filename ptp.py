@@ -622,7 +622,10 @@ def SendObjectInfo(cnt):
   if type==PTP_USB_CONTAINER_DATA: # 2
     # we just have received data from host
     # send OK response to host
-    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+    # here we must send extended "OK" response
+    # with 3 addional 32-bit fields:
+    # storage_id, parend_id, object_id
+    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,0xd1,0xf1)
     print(">",end="")
     print_hex(i0_usbd_buf[:length])
     usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
