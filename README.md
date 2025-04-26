@@ -41,8 +41,10 @@ For "put" gphoto2 currently responds with "unspecified error -1".
 
 # Windows
 
-Currently it doesn't work.
+windows 10 mostly works!
 
-After device sends "GetDeviceInfo" windows don't
-send any further IN/OUT request to EP1/EP2.
-Windows send some control transfers to EP0 though.
+Directory browsing and file reading is ok.
+
+No errors appear after overwriting file but
+overwrite only temporarily deletes file
+while on linux the file stays.
