@@ -482,12 +482,12 @@ def GetObjectHandles(cnt):
     # first 32-bit is length (number of elements, actually files or directories)
     # rest are elements of 32-bits
     # each element can be any unique integer
-    # actually a file id
-    data=uint32_array([0xd1]) # 0xd1 directory
+    # actually a objecthandle
+    data=uint32_array([0xf0,0xd1]) # 0xd1 directory, 0xf0 file F0.TXT
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
   elif p3==0xd1:
-    data=uint32_array([0xf1,0xf2])
+    data=uint32_array([0xf1,0xf2]) # 0xf1 file F1.TXT, 0xf2 file F2.TXT
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
   else:
@@ -532,40 +532,58 @@ def GetObjectInfo(cnt):
   thumb_image_null=bytearray(26)
   ParentObject=0
   assoc_seq_null=bytearray(10)
-  if p1==0xd1: # first directory
+  if p1==0xd1: # first directory objecthandle
     ObjectFormat=PTP_OFC_Directory
     ParentObject=0 # 0 means this file is in root directory
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
-    name=ucs2_string(b"DIR\0")
+    name=ucs2_string(b"D1\0") # directory name
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==0xf1: # first file objecthandle_array[0]
+  elif p1==0xf0: # zero'th file objecthandle
     ObjectFormat=PTP_OFC_Text
-    ParentObject=0xd1 # directory id where this file is
+    ParentObject=0 # 0 file is in root directory
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
-    name=ucs2_string(b"F1.TXT\0")
+    name=ucs2_string(b"F0.TXT\0") # file name
     #create=b"\0" # if we don't provide file time info
     year, month, day, hour, minute, second, weekday, yearday = time.localtime()
     # create/modify report as current date (file constantly changes date)
-    create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
+    create=b"\0" # if we don't provide file time info
+    #create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
     #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
     modify=create
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==0xf2: # second file objecthandle_array[1]
+  elif p1==0xf1: # first file objecthandle
     ObjectFormat=PTP_OFC_Text
     ParentObject=0xd1 # directory id where this file is
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
-    name=ucs2_string(b"F2.TXT\0")
+    name=ucs2_string(b"F1.TXT\0") # file name
     #create=b"\0" # if we don't provide file time info
-    create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
+    year, month, day, hour, minute, second, weekday, yearday = time.localtime()
+    # create/modify report as current date (file constantly changes date)
+    create=b"\0" # if we don't provide file time info
+    #create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
+    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
+    modify=create
+    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
+    #data=header+name+b"\0\0\0"
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
+  elif p1==0xf2: # second file objecthandle
+    ObjectFormat=PTP_OFC_Text
+    ParentObject=0xd1 # directory id where this file is
+    hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
+    hdr2=struct.pack("<I",ParentObject)
+    name=ucs2_string(b"F2.TXT\0") # file name
+    create=b"\0" # if we don't provide file time info
+    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
     modify=create # same as above
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     #data=header+name+b"\0\0\0"
@@ -586,11 +604,15 @@ def GetObject(cnt):
   opcode=unpack_opcode(cnt) # always 0x1009
   p1,=struct.unpack("<I",cnt[12:16])
   print("p1=%08x" % p1)
-  if p1==0xf1: # first file objecthandle_array[0]
+  if p1==0xf0: # zeroth file objecthandle
+    data=b"file0\n"
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
+  elif p1==0xf1: # first file objecthandle
     data=b"file1\n"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==0xf2: # second file objecthandle_array[1]
+  elif p1==0xf2: # second file objecthandle
     data=b"file2\n"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
