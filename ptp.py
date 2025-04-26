@@ -191,6 +191,10 @@ sesid=0
 txid=0
 opcode=0
 
+# global sendobject (receive file) length
+send_length=0
+remaining_send_length=0
+
 # USB PTP "type" 16-bit field
 PTP_USB_CONTAINER_UNDEFINED=const(0)
 PTP_USB_CONTAINER_COMMAND=const(1)
@@ -240,14 +244,14 @@ PTP_RC_InvalidDataSet=const(0x2023)
 # return: length,type,code,trans_id
 # print("%08x %04x %04x %08x" % unpack_ptp_hdr(ptp_container))
 def unpack_ptp_hdr(cnt):
-  return struct.unpack("<IHHI",cnt)
+  return struct.unpack("<LHHL",cnt)
 
 def print_ptp_header(cnt):
   print("%08x %04x %04x %08x" % unpack_ptp_hdr(cnt),end="")
 
 def print_ptp_params(cnt):
   for i in range((len(cnt)-12)//4):
-    print("p%d:%08x" % (i,struct.unpack("<I",cnt[12+4*i:16+4*i])[0]))
+    print("p%d:%08x" % (i,struct.unpack("<L",cnt[12+4*i:16+4*i])[0]))
 
 def print_ptp(cnt):
   print_ptp_header(cnt)
@@ -273,20 +277,20 @@ def print_ucs2_string(s):
 # params 0..5
 def PTP_CNT_INIT(cnt,type,code,*params):
   length=12+4*len(params)
-  cnt[0:12]=struct.pack("<IHHI",length,type,code,txid)
+  cnt[0:12]=struct.pack("<LHHL",length,type,code,txid)
   for i in range(len(params)):
-    cnt[12+i*4:16+i*4]=struct.pack("<I",params[i])
+    cnt[12+i*4:16+i*4]=struct.pack("<L",params[i])
   return length
 
 # data payload
 def PTP_CNT_INIT_DATA(cnt,type,code,data):
   length=12+len(data)
-  cnt[0:12]=struct.pack("<IHHI",length,type,code,txid)
+  cnt[0:12]=struct.pack("<LHHL",length,type,code,txid)
   cnt[12:length]=data
   return length
 
 def PTP_CNT_INIT_LEN_DATA(cnt,length,type,code,data):
-  cnt[0:12]=struct.pack("<IHHI",length,type,code,txid)
+  cnt[0:12]=struct.pack("<LHHL",length,type,code,txid)
   cnt[12:length]=data
   return length
 
@@ -300,7 +304,7 @@ def unpack_opcode(cnt):
   return struct.unpack("<H",cnt[6:8])[0]
 
 def unpack_txid(cnt):
-  return struct.unpack("<I",cnt[8:12])[0]
+  return struct.unpack("<L",cnt[8:12])[0]
 
 
 # DeviceInfo pack/unpack
@@ -313,7 +317,7 @@ def unpack_txid(cnt):
 
 # pack a tuple as 16-bit array for deviceinfo
 def uint16_array(a):
-  return struct.pack("<I"+"H"*len(a),len(a),*a)
+  return struct.pack("<L"+"H"*len(a),len(a),*a)
 
 # pack a bytearray string as 16-bit ucs2 string for device info
 def ucs2_string(s):
@@ -323,7 +327,7 @@ def ucs2_string(s):
 
 # objecthandle array
 def uint32_array(a):
-  return struct.pack("<I"+"I"*len(a),len(a),*a)
+  return struct.pack("<L"+"L"*len(a),len(a),*a)
 
 length_response=bytearray(1) # length to send response once
 send_response=bytearray(32) # response to send
@@ -342,7 +346,7 @@ def OpenSession(cnt):
   #print("OpenSession")
   #print("<",end="")
   #print_hex(cnt)
-  txid,sesid=struct.unpack("<II",cnt[8:16])
+  txid,sesid=struct.unpack("<LL",cnt[8:16])
   #print("txid=",txid,"sesid=",sesid)
   # prepare response 0c 00 00 00  03 00  01 20  00 00 00 00
   #ptp_response_offset=0
@@ -388,7 +392,7 @@ def GetDeviceInfo(cnt):
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x1001
   # prepare response: device info standard 1.00 = 100
-  header=struct.pack("<HIHBH", 100, 6, 100, 0, 0)
+  header=struct.pack("<HLHBH", 100, 6, 100, 0, 0)
   operations=uint16_array((
   0x1001,0x1002,0x1003,0x1004,
   0x1005,0x1006,0x1007,0x1008,
@@ -474,7 +478,7 @@ def GetObjectHandles(cnt):
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x1007
   # unpack 3 parameters
-  p1,p2,p3=struct.unpack("<III",cnt[12:24])
+  p1,p2,p3=struct.unpack("<LLL",cnt[12:24])
   print("p1=%08x p2=%08x p3=%08x" % (p1,p2,p3))
   # prepare response depending on p1-3 parameters
   if p3==0xFFFFFFFF or p3==0x10001: # root directory
@@ -523,7 +527,7 @@ def GetObjectInfo(cnt):
   print_hex(cnt)
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x1008
-  p1,=struct.unpack("<I",cnt[12:16])
+  p1,=struct.unpack("<L",cnt[12:16])
   print("p1=%08x" % p1)
   StorageID=0x10001
   ObjectFormat=PTP_OFC_Text
@@ -535,8 +539,8 @@ def GetObjectInfo(cnt):
   if p1==0xd1: # first directory objecthandle
     ObjectFormat=PTP_OFC_Directory
     ParentObject=0 # 0 means this file is in root directory
-    hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
-    hdr2=struct.pack("<I",ParentObject)
+    hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
+    hdr2=struct.pack("<L",ParentObject)
     name=ucs2_string(b"D1\0") # directory name
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     #data=header+name+b"\0\0\0"
@@ -545,8 +549,8 @@ def GetObjectInfo(cnt):
   elif p1==0xf0: # zero'th file objecthandle
     ObjectFormat=PTP_OFC_Text
     ParentObject=0 # 0 file is in root directory
-    hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
-    hdr2=struct.pack("<I",ParentObject)
+    hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
+    hdr2=struct.pack("<L",ParentObject)
     name=ucs2_string(b"F0.TXT\0") # file name
     #create=b"\0" # if we don't provide file time info
     year, month, day, hour, minute, second, weekday, yearday = time.localtime()
@@ -562,8 +566,8 @@ def GetObjectInfo(cnt):
   elif p1==0xf1: # first file objecthandle
     ObjectFormat=PTP_OFC_Text
     ParentObject=0xd1 # directory id where this file is
-    hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
-    hdr2=struct.pack("<I",ParentObject)
+    hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
+    hdr2=struct.pack("<L",ParentObject)
     name=ucs2_string(b"F1.TXT\0") # file name
     #create=b"\0" # if we don't provide file time info
     year, month, day, hour, minute, second, weekday, yearday = time.localtime()
@@ -579,8 +583,8 @@ def GetObjectInfo(cnt):
   elif p1==0xf2: # second file objecthandle
     ObjectFormat=PTP_OFC_Text
     ParentObject=0xd1 # directory id where this file is
-    hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
-    hdr2=struct.pack("<I",ParentObject)
+    hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
+    hdr2=struct.pack("<L",ParentObject)
     name=ucs2_string(b"F2.TXT\0") # file name
     create=b"\0" # if we don't provide file time info
     #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
@@ -602,7 +606,7 @@ def GetObject(cnt):
   print_hex(cnt)
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x1009
-  p1,=struct.unpack("<I",cnt[12:16])
+  p1,=struct.unpack("<L",cnt[12:16])
   print("p1=%08x" % p1)
   if p1==0xf0: # zeroth file objecthandle
     data=b"file0\n"
@@ -623,8 +627,8 @@ def GetObject(cnt):
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
 def DeleteObject(cnt):
-  print("DeleteObject")
   global txid,opcode
+  print("DeleteObject")
   print("<",end="")
   print_hex(cnt)
   txid=unpack_txid(cnt)
@@ -643,7 +647,7 @@ def DeleteObject(cnt):
 # currently protocol "works" but
 # "unspecified error -1" appears
 def SendObjectInfo(cnt):
-  global txid,opcode,next_out_cb,delay_next_out_cb
+  global txid,opcode,send_length
   print("SendObjectInfo")
   print("<",end="")
   print_hex(cnt)
@@ -656,6 +660,9 @@ def SendObjectInfo(cnt):
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
   if type==PTP_USB_CONTAINER_DATA: # 2
     # we just have received data from host
+    # host sends in advance file length to be sent
+    send_length,=struct.unpack("<L", cnt[20:24])
+    print("send length:", send_length)
     # send OK response to host
     # here we must send extended "OK" response
     # with 3 addional 32-bit fields:
@@ -665,9 +672,15 @@ def SendObjectInfo(cnt):
     print_hex(i0_usbd_buf[:length])
     usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
+def irq_sendobject_complete(objecthandle):
+  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,objecthandle)
+  print("irq>",end="")
+  print_hex(i0_usbd_buf[:length])
+  usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:length])
+
 def SendObject(cnt):
+  global txid,opcode,send_length,remaining_send_length
   print("SendObject")
-  global txid,opcode
   print("<",end="")
   print_hex(cnt)
   type=unpack_type(cnt)
@@ -678,22 +691,30 @@ def SendObject(cnt):
     # prepare full buffer to read again from host
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
   if type==PTP_USB_CONTAINER_DATA: # 2
-    # suppose we are overwritting file id 0xf1 F1.TXT
     # host has just sent data
-    # load interrupt response of object changed
+    # incoming payload is 12 bytes after PTP header
+    # subtract send_length by incoming payload
+    if send_length>0:
+      remaining_send_length=send_length-(len(cnt)-12)
+      send_length=0
+    print("send_length=",send_length,"remain=",remaining_send_length)
 
-    # first sched irq and after irq reply ok to host
-    # report object 0xf1 (F1.TXT) changed
-    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,0xf1)
-    print("irq>",end="")
-    print_hex(i0_usbd_buf[:length])
-    usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:length])
-
-    # after irq reply OK to host
-    #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-    #print(">",end="")
-    #print_hex(i0_usbd_buf[:length])
-    #usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+    # if host has sent all bytes it promised to send
+    # report it to the host that file is complete
+    if remaining_send_length<=0:
+      # load interrupt response of object changed
+      # first sched irq and after irq reply ok to host
+      # report object 0xf1 (F1.TXT) changed
+      # after irq reply OK to host
+      #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+      #print(">",end="")
+      #print_hex(i0_usbd_buf[:length])
+      #usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+      irq_sendobject_complete(0xf0)
+    else:
+      # host will send another OUT command
+      # prepare full buffer to read again from host
+      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf) 
 
 def CloseSession(cnt):
   print("CloseSession")
@@ -740,9 +761,23 @@ ptp_opcode_cb = {
 }
 
 def decode_ptp(cnt):
-  #length,type,code,trans_id = unpack_ptp_hdr(cnt)
-  code,=struct.unpack("<H",cnt[6:8])
-  ptp_opcode_cb[code](cnt)
+  global remaining_send_length
+  if remaining_send_length>0:
+    # continue receiving parts of the file
+    remaining_send_length-=len(cnt)
+    #print_hexdump(cnt)
+    print("remaining send_length", remaining_send_length)
+    if remaining_send_length>0:
+      # host will send another OUT command
+      # prepare full buffer to read again from host
+      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf) 
+    else:
+      # signal to host we have received entire file
+      irq_sendobject_complete(0xf0)
+  else:
+    #length,type,code,trans_id = unpack_ptp_hdr(cnt)
+    code,=struct.unpack("<H",cnt[6:8])
+    ptp_opcode_cb[code](cnt)
 
 # EP0 control requests handlers
 def handle_out(bRequest, wValue, buf):
