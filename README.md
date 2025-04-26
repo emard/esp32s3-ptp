@@ -7,29 +7,31 @@ to the host. Filesystem is not block based like FAT so it doesn't need some
 
 # Linux
 
-Opens the filesystem in file browser window,
-appears similar to USB stick.
+Opens the filesystem in file browser window.
+it appears like an USB stick.
 
 When gnome is stopped (service gdm3 stop)
 PTP filesystem can be accessed
 by commandline "gphoto2".
 
-Fileystem could be mounted by
-gphotofs which I haven't yet tried.
+Fileystem could be mounted by gphotofs
+which I haven't yet tried.
 
-Browsing directory structure and reading file works.
+works:
 
-Writing file has problem. Currently I'm testing overwriting
-a file "F1.TXT".
+    browsing directory
+    reading file (reads always the same content)
+    overwriting file (file content won't change yet)
+
+From gphoto commandline verwriting a file "F1.TXT".
 
     gphoto2 --shell
-    cd /storage_00010001/DIR
+    cd /storage_00010001/D1
     ls
     F1.TXT   F2.TXT
     get F1.TXT
     ok
     put /storage_00010001/DIR/F1.TXT
-    unspecified error -1
 
 Note the strange "put" argument. File "F1.TXT" is in
 current directory, because it has just been obtained by "get".
