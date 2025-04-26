@@ -544,7 +544,10 @@ def GetObjectInfo(cnt):
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
     name=ucs2_string(b"F1.TXT\0")
-    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
+    create=b"\0"
+    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
+    modify=create
+    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
@@ -554,7 +557,10 @@ def GetObjectInfo(cnt):
     hdr1=struct.pack("<IHHI",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<I",ParentObject)
     name=ucs2_string(b"F2.TXT\0")
-    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
+    create=b"\0"
+    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
+    modify=create # same as above
+    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
