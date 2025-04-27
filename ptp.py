@@ -679,8 +679,9 @@ def irq_sendobject_complete(objecthandle):
 def SendObject(cnt):
   global txid,opcode,send_length,remaining_send_length
   print("SendObject")
-  print("<",end="")
-  print_hex(cnt)
+  print("<len(cnt)=",len(cnt),"bytes packet")
+  #print("<",end="")
+  #print_hex(cnt)
   type=unpack_type(cnt)
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x100D
@@ -714,7 +715,7 @@ def SendObject(cnt):
     else:
       # host will send another OUT command
       # prepare full buffer to read again from host
-      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf) 
+      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
 
 def CloseSession(cnt):
   print("CloseSession")
@@ -767,11 +768,11 @@ def decode_ptp(cnt):
     ecp5.hwspi.write(cnt)
     remaining_send_length-=len(cnt)
     #print_hexdump(cnt)
-    print("remaining send_length", remaining_send_length)
+    print("<len(cnt)=",len(cnt),"remaining_send_length=", remaining_send_length)
     if remaining_send_length>0:
       # host will send another OUT command
       # prepare full buffer to read again from host
-      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf) 
+      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
     else:
       # signal to host we have received entire file
       irq_sendobject_complete(dir_handles[send_dir][0])
@@ -794,6 +795,7 @@ def handle_in(bRequest, wValue, buf):
 usb_buf = bytearray(64)
 
 # USB data buffer for Bulk IN and OUT transfers.
+# must be multiple of 64 bytes
 i0_usbd_buf = bytearray(1024)
 
 # not used
