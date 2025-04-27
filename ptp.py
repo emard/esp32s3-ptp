@@ -621,7 +621,7 @@ def GetObject(cnt):
     data=b"file1\n"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==dir_handles[0xd1][0]: # second file objecthandle
+  elif p1==dir_handles[0xd2][0]: # second file objecthandle
     data=b"file2\n"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
