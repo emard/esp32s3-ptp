@@ -199,6 +199,9 @@ remaining_send_length=0
 d1_handles=[0xf1]
 d2_handles=[0xf2]
 
+# each dir handle contains one file handle
+dir_handles={0xd1:[0xf1],0xd2:[0xf2]}
+
 new_handle=[0xf3] # newly uploaded file will get this handle
 
 # USB PTP "type" 16-bit field
@@ -506,15 +509,11 @@ def GetObjectHandles(cnt):
     # rest are elements of 32-bits
     # each element can be any unique integer
     # actually a objecthandle
-    data=uint32_array([0xd1,0xd2]) # two directoryies 0xd1 and 0xd2
+    data=uint32_array(list(dir_handles.keys())) # two directoryies 0xd1 and 0xd2
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p3==0xd1:
-    data=uint32_array(d1_handles) # array of handles in 0xd1 directory
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
-  elif p3==0xd2:
-    data=uint32_array(d2_handles) # array of handles in 0xd2 directory
+  elif dir_handles.get(p3):
+    data=uint32_array(dir_handles.get(p3)) # array of handles in directory
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
   else:
@@ -559,27 +558,17 @@ def GetObjectInfo(cnt):
   thumb_image_null=bytearray(26)
   ParentObject=0
   assoc_seq_null=bytearray(10)
-  if p1==0xd1: # first directory objecthandle
+  if dir_handles.get(p1): # is this a directory objecthandle
     ObjectFormat=PTP_OFC_Directory
     ParentObject=0 # 0 means this file is in root directory
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
-    name=ucs2_string(b"D1\0") # directory name
+    name=ucs2_string(b"%02X\0" % p1) # directory name converter from hex
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==0xd2: # second directory objecthandle
-    ObjectFormat=PTP_OFC_Directory
-    ParentObject=0 # 0 means this file is in root directory
-    hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
-    hdr2=struct.pack("<L",ParentObject)
-    name=ucs2_string(b"D2\0") # directory name
-    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
-    #data=header+name+b"\0\0\0"
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
-  elif p1==d1_handles[0]: # file in dir 0xd1 objecthandle
+  elif p1==dir_handles[0xd1][0]: # file in dir 0xd1 objecthandle
     ObjectFormat=PTP_OFC_Text
     #ParentObject=0 # 0 file is in root directory
     ParentObject=0xd1 # file is in 0xd1 directory
@@ -597,7 +586,7 @@ def GetObjectInfo(cnt):
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==d2_handles[0]: # file in dir 0xd2 objecthandle
+  elif p1==dir_handles[0xd2][0]: # file in dir 0xd2 objecthandle
     ObjectFormat=PTP_OFC_Text
     #ParentObject=0 # 0 file is in root directory
     ParentObject=0xd2 # file is in 0xd2 directory
@@ -630,11 +619,11 @@ def GetObject(cnt):
   opcode=unpack_opcode(cnt) # always 0x1009
   p1,=struct.unpack("<L",cnt[12:16])
   print("p1=%08x" % p1)
-  if p1==d1_handles[0]: # first file objecthandle
+  if p1==dir_handles[0xd1][0]: # first file objecthandle
     data=b"file1\n"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==d2_handles[0]: # second file objecthandle
+  elif p1==dir_handles[0xd1][0]: # second file objecthandle
     data=b"file2\n"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
@@ -690,12 +679,8 @@ def SendObjectInfo(cnt):
     # with 3 addional 32-bit fields:
     # storage_id, parend_id, object_id
     new_handle[0]+=1
-    if send_dir==0xd1:
-      d1_handles[0]=new_handle[0]
-      length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,send_dir,d1_handles[0])
-    if send_dir==0xd2:
-      d2_handles[0]=new_handle[0] 
-      length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,send_dir,d2_handles[0])
+    dir_handles[send_dir][0]=new_handle[0]
+    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,send_dir,dir_handles[send_dir][0])
     print(">",end="")
     print_hex(i0_usbd_buf[:length])
     usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
@@ -738,10 +723,7 @@ def SendObject(cnt):
       #print(">",end="")
       #print_hex(i0_usbd_buf[:length])
       #usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
-      if send_dir==0xd1:
-        irq_sendobject_complete(d1_handles[0])
-      if send_dir==0xd2:
-        irq_sendobject_complete(d2_handles[0])
+      irq_sendobject_complete(dir_handles[send_dir][0])
     else:
       # host will send another OUT command
       # prepare full buffer to read again from host
@@ -804,10 +786,7 @@ def decode_ptp(cnt):
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf) 
     else:
       # signal to host we have received entire file
-      if send_dir==0xd1:
-        irq_sendobject_complete(d1_handles[0])
-      if send_dir==0xd2:
-        irq_sendobject_complete(d2_handles[0])
+      irq_sendobject_complete(dir_handles[send_dir][0])
   else:
     #length,type,code,trans_id = unpack_ptp_hdr(cnt)
     code,=struct.unpack("<H",cnt[6:8])
