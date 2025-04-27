@@ -195,14 +195,12 @@ opcode=0
 send_dir=0 # to which directory we will send object
 send_length=0
 remaining_send_length=0
-# directory D1 content 
-d1_handles=[0xf1]
-d2_handles=[0xf2]
 
-# each dir handle contains one file handle
+# handles (unique object ids)
+# each dir contains one file so it has one handle
 dir_handles={0xd1:[0xf1],0xd2:[0xf2]}
 
-new_handle=[0xf3] # newly uploaded file will get this handle
+new_handle=[0xf3] # increments, newly uploaded file will get this handle
 
 # USB PTP "type" 16-bit field
 PTP_USB_CONTAINER_UNDEFINED=const(0)
