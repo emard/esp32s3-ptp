@@ -197,6 +197,9 @@ f1_name=b"F1.TXT\0"
 send_name=b"F1.TXT\0"
 send_length=0
 remaining_send_length=0
+# directory D1 content 
+d1_handles=[0xf5]
+new_handle=[0xf6] # newly uploaded file will get this handle
 
 # USB PTP "type" 16-bit field
 PTP_USB_CONTAINER_UNDEFINED=const(0)
@@ -501,10 +504,7 @@ def GetObjectHandles(cnt):
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
   elif p3==0xd1:
-    if new_uploaded:
-      data=uint32_array([0xf1,0xf2,0xf3]) # 0xf1 file F1.TXT, 0xf2 file F2.TXT, 0xf3 new file
-    else:
-      data=uint32_array([0xf1,0xf2]) # 0xf1 file F1.TXT, 0xf2 file F2.TXT
+    data=uint32_array(d1_handles) # 0xf1 file F1.TXT, 0xf2 file F2.TXT, 0xf3 new file
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
   else:
@@ -576,13 +576,13 @@ def GetObjectInfo(cnt):
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==0xf1: # first file objecthandle
+  elif p1==d1_handles[0]: # first file objecthandle
     ObjectFormat=PTP_OFC_Text
     ParentObject=0xd1 # directory id where this file is
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
-    name=ucs2_string(b"F1.TXT\0") # file name
-    #name=ucs2_string(send_name) # same name as we have sent
+    #name=ucs2_string(b"F1.TXT\0") # file name
+    name=ucs2_string(send_name) # same name as we have sent
     #create=b"\0" # if we don't provide file time info
     year, month, day, hour, minute, second, weekday, yearday = time.localtime()
     # create/modify report as current date (file constantly changes date)
@@ -600,20 +600,6 @@ def GetObjectInfo(cnt):
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
     name=ucs2_string(b"F2.TXT\0") # file name
-    create=b"\0" # if we don't provide file time info
-    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
-    modify=create # same as above
-    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
-    #data=header+name+b"\0\0\0"
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
-  elif p1==0xf3: # new file uploaded objecthandle
-    ObjectFormat=PTP_OFC_Text
-    ParentObject=0xd1 # directory id where this file is
-    hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
-    hdr2=struct.pack("<L",ParentObject)
-    #name=ucs2_string(b"F2.TXT\0") # file name
-    name=ucs2_string(send_name) # same name as we have sent
     create=b"\0" # if we don't provide file time info
     #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
     modify=create # same as above
@@ -640,7 +626,7 @@ def GetObject(cnt):
     data=b"file0\n"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==0xf1: # first file objecthandle
+  elif p1==d1_handles[0]: # first file objecthandle
     data=b"file1\n"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
@@ -697,7 +683,8 @@ def SendObjectInfo(cnt):
     # here we must send extended "OK" response
     # with 3 addional 32-bit fields:
     # storage_id, parend_id, object_id
-    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,0xd1,0xf3)
+    d1_handles[0]+=1
+    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,0xd1,d1_handles[0])
     print(">",end="")
     print_hex(i0_usbd_buf[:length])
     usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
@@ -742,7 +729,7 @@ def SendObject(cnt):
       #print(">",end="")
       #print_hex(i0_usbd_buf[:length])
       #usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
-      irq_sendobject_complete(0xf3)
+      irq_sendobject_complete(d1_handles[0])
     else:
       # host will send another OUT command
       # prepare full buffer to read again from host
@@ -805,7 +792,7 @@ def decode_ptp(cnt):
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf) 
     else:
       # signal to host we have received entire file
-      irq_sendobject_complete(0xf3)
+      irq_sendobject_complete(d1_handles[0])
   else:
     #length,type,code,trans_id = unpack_ptp_hdr(cnt)
     code,=struct.unpack("<H",cnt[6:8])
