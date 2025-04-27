@@ -199,6 +199,7 @@ remaining_send_length=0
 # handles (unique object ids)
 # each dir contains one file so it has one handle
 dir_handles={0xd1:[0xf1],0xd2:[0xf2]}
+dir_names={0xd1:b"D1\0",0xd2:b"D2\0"}
 
 new_handle=[0xf3] # increments, newly uploaded file will get this handle
 
@@ -556,53 +557,38 @@ def GetObjectInfo(cnt):
   thumb_image_null=bytearray(26)
   ParentObject=0
   assoc_seq_null=bytearray(10)
+  length=0 # zero response currently
   if dir_handles.get(p1): # is this a directory objecthandle
     ObjectFormat=PTP_OFC_Directory
     ParentObject=0 # 0 means this file is in root directory
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
-    name=ucs2_string(b"%02X\0" % p1) # directory name converter from hex
+    name=ucs2_string(dir_names[p1]) # directory name converted
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif p1==dir_handles[0xd1][0]: # file in dir 0xd1 objecthandle
-    ObjectFormat=PTP_OFC_Text
-    #ParentObject=0 # 0 file is in root directory
-    ParentObject=0xd1 # file is in 0xd1 directory
-    hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
-    hdr2=struct.pack("<L",ParentObject)
-    #name=ucs2_string(b"F0.TXT\0") # file name
-    name=send_name # same name as we have sent
-    #year, month, day, hour, minute, second, weekday, yearday = time.localtime()
-    # create/modify report as current date (file constantly changes date)
-    create=b"\0" # if we don't provide file time info
-    #create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
-    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
-    modify=create
-    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
-    #data=header+name+b"\0\0\0"
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
-  elif p1==dir_handles[0xd2][0]: # file in dir 0xd2 objecthandle
-    ObjectFormat=PTP_OFC_Text
-    #ParentObject=0 # 0 file is in root directory
-    ParentObject=0xd2 # file is in 0xd2 directory
-    hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
-    hdr2=struct.pack("<L",ParentObject)
-    #name=ucs2_string(b"F1.TXT\0") # file name
-    name=send_name # same name as we have sent
-    #year, month, day, hour, minute, second, weekday, yearday = time.localtime()
-    # create/modify report as current date (file constantly changes date)
-    create=b"\0" # if we don't provide file time info
-    #create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
-    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
-    modify=create
-    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
-    #data=header+name+b"\0\0\0"
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
-  else:
+  else: # not directory, see if it is a file
+    for dh in dir_handles.keys(): # all dirs
+      if p1==dir_handles[dh][0]: # look for a first file in each dir
+        ObjectFormat=PTP_OFC_Text
+        #ParentObject=0 # 0 file is in root directory
+        ParentObject=dh # file is found in this directory
+        hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
+        hdr2=struct.pack("<L",ParentObject)
+        #name=ucs2_string(b"F0.TXT\0") # file name
+        name=send_name # trick gnome, report the same name as we have sent before
+        #year, month, day, hour, minute, second, weekday, yearday = time.localtime()
+        # create/modify report as current date (file constantly changes date)
+        create=b"\0" # if we don't provide file time info
+        #create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
+        #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
+        modify=create
+        data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
+        #data=header+name+b"\0\0\0"
+        length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+        respond_ok()
+  if length==0: # p1 objecthandle not found, report just ok
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
@@ -617,15 +603,13 @@ def GetObject(cnt):
   opcode=unpack_opcode(cnt) # always 0x1009
   p1,=struct.unpack("<L",cnt[12:16])
   print("p1=%08x" % p1)
-  if p1==dir_handles[0xd1][0]: # first file objecthandle
-    data=b"file1\n"
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
-  elif p1==dir_handles[0xd2][0]: # second file objecthandle
-    data=b"file2\n"
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
-  else:
+  length=0
+  for dh in dir_handles.keys(): # iterate all dirs
+    if p1==dir_handles[dh][0]: # match first file in any dir
+      data=b"file 0x%x\n" % p1
+      length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+      respond_ok()
+  if length==0:
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
