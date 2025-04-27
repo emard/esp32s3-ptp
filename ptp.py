@@ -192,9 +192,6 @@ txid=0
 opcode=0
 
 # global sendobject (receive file) length
-new_uploaded=False
-f1_name=b"F1.TXT\0"
-send_name=b"F1.TXT\0"
 send_length=0
 remaining_send_length=0
 # directory D1 content 
@@ -338,9 +335,15 @@ def decode_ucs2_string(s):
     str[i]=s[1+i+i]
   return str
 
+def get_ucs2_string(s):
+  len=s[0]
+  return s[0:1+len+len]
+
 # objecthandle array
 def uint32_array(a):
   return struct.pack("<L"+"L"*len(a),len(a),*a)
+  
+send_name=ucs2_string(b"F1.TXT\0") # initialize file name in d1 directory
 
 length_response=bytearray(1) # length to send response once
 send_response=bytearray(32) # response to send
@@ -582,7 +585,7 @@ def GetObjectInfo(cnt):
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
     #name=ucs2_string(b"F1.TXT\0") # file name
-    name=ucs2_string(send_name) # same name as we have sent
+    name=send_name # same name as we have sent
     #create=b"\0" # if we don't provide file time info
     year, month, day, hour, minute, second, weekday, yearday = time.localtime()
     # create/modify report as current date (file constantly changes date)
@@ -675,8 +678,8 @@ def SendObjectInfo(cnt):
   if type==PTP_USB_CONTAINER_DATA: # 2
     # we just have received data from host
     # host sends in advance file length to be sent
-    send_name=decode_ucs2_string(cnt[64:])
-    print("send name:", send_name)
+    send_name=get_ucs2_string(cnt[64:])
+    print("send name:", decode_ucs2_string(send_name))
     send_length,=struct.unpack("<L", cnt[20:24])
     print("send length:", send_length)
     # send OK response to host
@@ -690,12 +693,10 @@ def SendObjectInfo(cnt):
     usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
 def irq_sendobject_complete(objecthandle):
-  global new_uploaded
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,objecthandle)
   print("irq>",end="")
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:length])
-  new_uploaded=True
 
 def SendObject(cnt):
   global txid,opcode,send_length,remaining_send_length
