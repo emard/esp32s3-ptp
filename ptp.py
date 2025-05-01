@@ -530,7 +530,7 @@ def GetObjectHandles(cnt):
     data=uint32_array(list(dir_handles.keys())) # two directoryies 0xd1 and 0xd2
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  elif dir_handles.get(p3):
+  elif p3 in dir_handles:
     data=uint32_array(dir_handles.get(p3)) # array of handles in directory
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
@@ -577,7 +577,7 @@ def GetObjectInfo(cnt):
   ParentObject=0
   assoc_seq_null=bytearray(10)
   length=0 # zero response currently
-  if dir_handles.get(p1): # is this a directory objecthandle
+  if p1 in dir_handles: # is this a directory objecthandle
     ObjectFormat=PTP_OFC_Directory
     ParentObject=0 # 0 means this file is in root directory
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
