@@ -767,7 +767,7 @@ ptp_opcode_cb = {
   0x1002:OpenSession,
   0x1003:CloseSession,
   0x1004:GetStorageIDs,
-  #0x1006:GetNumObjects,
+  # 0x1006:GetNumObjects,
   0x1005:GetStorageInfo,
   0x1007:GetObjectHandles,
   0x1008:GetObjectInfo,
