@@ -59,6 +59,7 @@ def ls(path,recurse):
         handle2path[current_handle]=fullpath
 
 ls("/",3)
+# listing again should not change or add anything
 ls("/",3)
 print(handle2path)
 print(path2handle)
