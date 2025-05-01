@@ -415,16 +415,20 @@ def GetDeviceInfo(cnt):
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x1001
   # prepare response: device info standard 1.00 = 100
-  header=struct.pack("<HLHBH", 100, 6, 100, 0, 0)
+  header=struct.pack("<HLH", 100, 6, 100)
+  extension=b"\0"
+  #extension=ucs2_string(b"microsoft.com: 1.0\0")
+  functional_mode=struct.pack("<H", 0) # 0: standard mode
   operations=uint16_array((
   0x1001,0x1002,0x1003,0x1004,
-  0x1005,0x1006,0x1007,0x1008,
+  0x1005,0x1007,0x1008,
   0x1009,0x100B,0x100C,0x100D))
   events=uint16_array((PTP_EC_ObjectInfoChanged,))
   deviceprops=uint16_array((PTP_DPC_DateTime,))
   captureformats=uint16_array((PTP_OFC_EXIF_JPEG,))
   imageformats=uint16_array((
   PTP_OFC_Undefined,
+  PTP_OFC_Directory,
   PTP_OFC_Text,
   PTP_OFC_HTML,
   PTP_OFC_EXIF_JPEG,
@@ -434,7 +438,7 @@ def GetDeviceInfo(cnt):
   model=ucs2_string(PRODUCT+b"\0")
   deviceversion=ucs2_string(VERSION+b"\0")
   serialnumber=ucs2_string(SERIAL+b"\0")
-  data=header+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
+  data=header+extension+functional_mode+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
   length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
   print(">",end="")
@@ -763,6 +767,7 @@ ptp_opcode_cb = {
   0x1002:OpenSession,
   0x1003:CloseSession,
   0x1004:GetStorageIDs,
+  #0x1006:GetNumObjects,
   0x1005:GetStorageInfo,
   0x1007:GetObjectHandles,
   0x1008:GetObjectInfo,
