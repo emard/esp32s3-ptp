@@ -39,7 +39,7 @@ def ls(path,recurse):
       handle2path[next_handle]=fullpath
       next_handle+=1
 
-ls("/",0)
+ls("/",3)
 print(handle2path)
 print(path2handle)
     
