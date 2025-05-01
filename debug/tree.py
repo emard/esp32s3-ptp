@@ -1,10 +1,12 @@
 import os
 
-# demo receorse filesystem
+# demo recurse filesystem
 
 # create 2 flat dictionaries for
 # forward and reverse search
 # path->handle and handle->path
+
+# create dictionary for directory content
 
 # global handle incremented
 next_handle=0
