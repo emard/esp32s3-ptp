@@ -469,6 +469,19 @@ def GetStorageIDs(cnt):
 # PTP_si_FreeSpaceInImages        22
 # PTP_si_StorageDescription       26
 
+# Storage Types
+STORAGE_FIXED_RAM=const(1)
+STORAGE_REMOVABLE_RAM=const(2)
+STORAGE_REMOVABLE_ROM=const(3)
+STORAGE_FIXED_ROM=const(4)
+STORAGE_REMOVABLE_MEDIA=const(5)
+STORAGE_FIXED_MEDIA=const(6)
+
+# Filesystem Access Capability
+STORAGE_READ_WRITE=const(0)
+STORAGE_READ_ONLY_WITHOUT_DELETE=const(1)
+STORAGE_READ_ONLY_WITH_DELETE=const(2)
+
 def GetStorageInfo(cnt):
   global txid,opcode
   print("GetStorageInfo")
@@ -477,9 +490,9 @@ def GetStorageInfo(cnt):
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x1005
   # prepare response
-  StorageType=3
+  StorageType=STORAGE_FIXED_MEDIA
   FilesystemType=2
-  AccessCapability=0
+  AccessCapability=STORAGE_READ_WRITE
   MaxCapability=0x1000000
   FreeSpaceInBytes=0xF00000
   FreeSpaceInImages=0x10000
