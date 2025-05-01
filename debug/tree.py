@@ -13,7 +13,11 @@ next_handle=0
 
 path2handle={}
 handle2path={}
-dir2handles={}
+dir2handle={}
+
+# example
+# path2handle = {"/lib":{0:5,"file1":10,"file2":11}} TODO
+# handle2path = {5:"/lib", 10:"/lib/file1", 11:"/lib/file2}
 
 DIR=const(16384)
 #FILE=const(32768)
@@ -37,8 +41,8 @@ def ls(path,recurse):
     if path=="/":
       print("root", current_dir)
   # id -> directory list
-  if not current_dir in dir2handles:
-    dir2handles[current_dir]={}
+  if not current_dir in dir2handle:
+    dir2handle[current_dir]={}
   for obj in dir:
     if path=="/":
       fullpath="/"+obj[0]
@@ -49,7 +53,7 @@ def ls(path,recurse):
     else:
       current_handle=next_handle
       next_handle+=1
-    dir2handles[current_dir][current_handle]=obj[0]
+    dir2handle[current_dir][current_handle]=obj[0]
     if obj[1]==DIR:
       print(path,"DIR:",obj)
       if recurse>0:
@@ -65,4 +69,4 @@ ls("/",3)
 ls("/",3)
 print(handle2path)
 print(path2handle)
-print(dir2handles)
+print(dir2handle)
