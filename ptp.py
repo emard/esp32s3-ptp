@@ -46,7 +46,7 @@
 # to access the custom USB device.
 
 import machine, struct, time
-import ecp5
+#import ecp5
 from micropython import const
 
 # VID and PID of the USB device.
@@ -674,7 +674,7 @@ def irq_sendobject_complete(objecthandle):
   print("irq>",end="")
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:length])
-  ecp5.prog_close()
+  #ecp5.prog_close()
 
 def SendObject(cnt):
   global txid,opcode,send_length,remaining_send_length
@@ -686,7 +686,7 @@ def SendObject(cnt):
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x100D
   if type==PTP_USB_CONTAINER_COMMAND: # 1
-    ecp5.prog_open()
+    #ecp5.prog_open()
     # host will send another OUT command
     # prepare full buffer to read again from host
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
@@ -695,7 +695,7 @@ def SendObject(cnt):
     # incoming payload is 12 bytes after PTP header
     # subtract send_length by incoming payload
     if send_length>0:
-      ecp5.hwspi.write(cnt[12:])
+      #ecp5.hwspi.write(cnt[12:])
       remaining_send_length=send_length-(len(cnt)-12)
       send_length=0
     print("send_length=",send_length,"remain=",remaining_send_length)
@@ -765,7 +765,7 @@ def decode_ptp(cnt):
   global remaining_send_length
   if remaining_send_length>0:
     # continue receiving parts of the file
-    ecp5.hwspi.write(cnt)
+    #ecp5.hwspi.write(cnt)
     remaining_send_length-=len(cnt)
     #print_hexdump(cnt)
     print("<len(cnt)=",len(cnt),"remaining_send_length=", remaining_send_length)
