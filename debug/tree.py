@@ -6,7 +6,6 @@ import os
 # forward and reverse search
 # path->handle and handle->path
 
-
 # global handle incremented
 next_handle=0
 
@@ -14,6 +13,7 @@ path2handle={}
 handle2path={}
 
 DIR=const(16384)
+#FILE=const(32768)
 
 # path: full path string
 # recurse: number of subdirectorys to recurse into
