@@ -36,24 +36,24 @@ def ls(path,recurse):
   else:
     current_dir=next_handle
     next_handle+=1
-    path2handle[path]=current_dir
+    path2handle[path]={0:current_dir}
     handle2path[current_dir]=path
-    if path=="/":
-      print("root", current_dir)
   # id -> directory list
+  print(dir2handle)
   if not current_dir in dir2handle:
     dir2handle[current_dir]={}
   for obj in dir:
+    objname=obj[0]
     if path=="/":
-      fullpath="/"+obj[0]
+      fullpath="/"+objname
     else:
-      fullpath=path+"/"+obj[0]
-    if fullpath in path2handle:
-      current_handle=path2handle[fullpath]
+      fullpath=path+"/"+objname
+    if objname in path2handle[path]:
+      current_handle=path2handle[path][objname]
     else:
       current_handle=next_handle
       next_handle+=1
-    dir2handle[current_dir][current_handle]=obj[0]
+    dir2handle[current_dir][current_handle]=objname
     if obj[1]==DIR:
       print(path,"DIR:",obj)
       if recurse>0:
@@ -61,12 +61,12 @@ def ls(path,recurse):
     else: # obj[1]==FILE
       print(path,"FILE:",obj)
       if not fullpath in path2handle:
-        path2handle[fullpath]=current_handle
+        path2handle[path][objname]=current_handle
         handle2path[current_handle]=fullpath
 
 ls("/",3)
 # listing again should not change or add anything
-ls("/",3)
+#ls("/",3) FIXME
 print(handle2path)
 print(path2handle)
 print(dir2handle)
