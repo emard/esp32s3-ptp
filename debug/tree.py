@@ -31,6 +31,7 @@ def ls(path,recurse):
   except:
     return
   # path -> handle and handle -> path
+  # "/lib" in {}
   if path in path2handle:
     current_dir=path2handle[path][0]
   else:
@@ -52,20 +53,24 @@ def ls(path,recurse):
     else:
       current_handle=next_handle
       next_handle+=1
-    dir2handle[current_dir][current_handle]=objname
     if obj[1]==DIR:
       print(path,"DIR:",obj)
       if recurse>0:
-        ls(fullpath,recurse-1)
+        dir2handle[current_dir][ls(fullpath,recurse-1)]=objname
     else: # obj[1]==FILE
+      dir2handle[current_dir][current_handle]=objname
       print(path,"FILE:",obj)
-      if not fullpath in path2handle:
+      if not objname in path2handle[path]:
         path2handle[path][objname]=current_handle
         handle2path[current_handle]=fullpath
+  return current_dir
 
-ls("/",3)
-# listing again should not change or add anything
-ls("/",3) # FIXME
+ls("/",1)
 print(handle2path)
 print(path2handle)
 print(dir2handle)
+# listing again should not change or add anything
+#ls("/",3) # FIXME
+#print(handle2path)
+#print(path2handle)
+#print(dir2handle)
