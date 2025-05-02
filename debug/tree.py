@@ -26,7 +26,7 @@ DIR=const(16384)
 # holds this file
 def parent(handle):
   path=handle2path[handle]
-  if path!="/" and path[-1]=="/":
+  if path[-1]=="/" and path!="/":
     dirname=path[:path[:-1].rfind("/")+1]
   else:
     dirname=path[:path.rfind("/")+1]
