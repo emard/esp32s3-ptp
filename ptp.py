@@ -667,9 +667,8 @@ def GetObjectInfo(cnt):
   length=0 # zero response currently
   if p1 in handle2path: # is this a directory objecthandle
     objname=basename(p1)
-    if objname[-1]=="/":
+    if handle2path[p1][-1]=="/":
       ObjectFormat=PTP_OFC_Directory
-      objname=objname[:-1]
     ParentObject=parent(p1) # 0 means this file is in root directory
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
