@@ -606,24 +606,12 @@ def GetObjectHandles(cnt):
   p1,p2,p3=struct.unpack("<LLL",cnt[12:24])
   print("p1=%08x p2=%08x p3=%08x" % (p1,p2,p3))
   # prepare response depending on p1-3 parameters
+  dirhandle=p3
   if p3==0xFFFFFFFF or p3==0x10001: # root directory
-    # actually a PTP array
-    # first 32-bit is length (number of elements, actually files or directories)
-    # rest are elements of 32-bits
-    # each element can be any unique integer
-    # actually a objecthandle
-    #data=uint32_array(list(dir_handles.keys())) # two directoryies 0xd1 and 0xd2
-    #print(objects(0))
-    data=uint32_array(objects(0))
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
-  elif p3 in dir_handles:
-    #data=uint32_array(dir_handles.get(p3)) # array of handles in directory
-    data=uint32_array(objects(p3)) # array of handles in directory
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
-  else:
-    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+    dirhandle=0
+  data=uint32_array(objects(dirhandle))
+  length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+  respond_ok()
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
