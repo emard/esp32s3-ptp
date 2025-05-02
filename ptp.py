@@ -45,7 +45,7 @@
 # udev rule is needed for user
 # to access the custom USB device.
 
-import machine, struct, time
+import machine, struct, time, os
 #import ecp5
 from micropython import const
 
@@ -497,8 +497,12 @@ def GetStorageInfo(cnt):
   StorageType=STORAGE_FIXED_MEDIA
   FilesystemType=2
   AccessCapability=STORAGE_READ_WRITE
-  MaxCapability=0x1000000
-  FreeSpaceInBytes=0xF00000
+  storinfo=os.statvfs("/")
+  blksize=storinfo[0]
+  blkmax=storinfo[2]
+  blkfree=storinfo[3]
+  MaxCapability=blksize*blkmax
+  FreeSpaceInBytes=blksize*blkfree
   FreeSpaceInImages=0x10000
   StorageDescription=ucs2_string(STORAGE+b"\0")
   VolumeLabel=ucs2_string(VOLUME+b"\0")
@@ -572,7 +576,7 @@ def GetObjectInfo(cnt):
   StorageID=0x10001
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
-  ObjectSize=6
+  ObjectSize=9
   thumb_image_null=bytearray(26)
   ParentObject=0
   assoc_seq_null=bytearray(10)
