@@ -78,7 +78,14 @@ def ls(path,recurse):
     if obj[1]==16384: # obj[1]==DIR
       print(path,"DIR:",obj)
       if recurse>0:
-        dir2handle[current_dir][ls(fullpath,recurse-1)]=obj
+        newhandle=ls(fullpath,recurse-1)
+        dir2handle[current_dir][newhandle]=obj
+        if path=="/":
+          parnt="/"
+        else:
+          parnt=path[:-1]
+        if not objname in path2handle[parnt]:
+          path2handle[parnt][newhandle]=objname
     else: # obj[1]==FILE
       dir2handle[current_dir][current_handle]=obj
       print(path,"FILE:",obj)
