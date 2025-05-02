@@ -86,7 +86,7 @@ def ls(path,recurse):
           parnt=path[:-1]
         objname_=objname+"/"
         if not objname_ in path2handle[parnt]:
-          path2handle[parnt][newhandle]=objname_
+          path2handle[parnt][objname_]=newhandle
     else: # obj[1]==FILE
       dir2handle[current_dir][current_handle]=obj
       print(path,"FILE:",obj)
