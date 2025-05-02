@@ -576,7 +576,7 @@ def GetObjectInfo(cnt):
   StorageID=0x10001
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
-  ObjectSize=9
+  ObjectSize=10
   thumb_image_null=bytearray(26)
   ParentObject=0
   assoc_seq_null=bytearray(10)
