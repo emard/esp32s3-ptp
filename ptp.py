@@ -653,39 +653,34 @@ def GetObjectInfo(cnt):
   ParentObject=0
   assoc_seq_null=bytearray(10)
   length=0 # zero response currently
-  if p1 in handle2path: # is this a directory objecthandle
+  if p1 in handle2path:
+    fullpath=handle2path[p1]
+    print("filepath",fullpath)
+    stat=os.stat(fullpath)
     objname=basename(p1)
-    if handle2path[p1][-1]=="/":
+    #if handle2path[p1][-1]=="/":
+    if stat[0]==16384: # dir
       ObjectFormat=PTP_OFC_Directory
+      ObjectSize=0
+    else: # stat[0]=32768 # file
+      ObjectFormat=PTP_OFC_Text
+      ObjectSize=stat[6]
     ParentObject=parent(p1) # 0 means this file is in root directory
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
     #print("objname:",objname)
     name=ucs2_string(objname.encode()) # directory name converted
-    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
+    #year, month, day, hour, minute, second, weekday, yearday = time.localtime()
+    # create/modify report as current date (file constantly changes date)
+    create=b"\0" # if we don't provide file time info
+    #create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
+    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
+    modify=create
+    #data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
+    data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  else: # not directory, see if it is a file
-    for dh in dir_handles.keys(): # all dirs
-      if p1==dir_handles[dh][0]: # look for a first file in each dir
-        ObjectFormat=PTP_OFC_Text
-        #ParentObject=0 # 0 file is in root directory
-        ParentObject=dh # file is found in this directory
-        hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
-        hdr2=struct.pack("<L",ParentObject)
-        #name=ucs2_string(b"F0.TXT\0") # file name
-        name=send_name # trick gnome, report the same name as we have sent before
-        #year, month, day, hour, minute, second, weekday, yearday = time.localtime()
-        # create/modify report as current date (file constantly changes date)
-        create=b"\0" # if we don't provide file time info
-        #create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
-        #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
-        modify=create
-        data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
-        #data=header+name+b"\0\0\0"
-        length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-        respond_ok()
   if length==0: # p1 objecthandle not found, report just ok
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
