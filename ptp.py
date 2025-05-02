@@ -205,6 +205,87 @@ dir_names={0xd1:b"FPGA\0",0xd2:b"FLASH\0"}
 
 new_handle=[0xf3] # increments, newly uploaded file will get this handle
 
+# for ls() generating vfs directory tree
+# global handle incremented
+next_handle=0
+path2handle={}
+handle2path={}
+dir2handle={}
+
+# for given boject handle "oh" find it's parent
+# actually a handle of directory which
+# holds this file
+def parent(oh):
+  path=handle2path[oh]
+  if path[-1]=="/" and path!="/":
+    dirname=path[:path[:-1].rfind("/")+1]
+  else:
+    dirname=path[:path.rfind("/")+1]
+  return path2handle[dirname][0]
+
+# get list of objects from directory handle "dh"
+def objects(dh):
+  return list(path2handle[handle2path[dh]].values())[1:]
+
+def basename(oh):
+  fullname=handle2path[oh]
+  if fullname=="/":
+    return "/"
+  if fullname[-1]=="/":
+    return fullname[fullname[:-1].rfind("/")+1:-1]
+  return fullname[fullname.rfind("/")+1:]
+
+# path: full path string
+# recurse: number of subdirectorys to recurse into
+def ls(path,recurse):
+  global next_handle
+  try:
+    dir=os.ilistdir(path)
+  except:
+    return
+  # if path doesn't trail with slash, add slash
+  if path[-1]!="/":
+    path+="/"
+  # path -> handle and handle -> path
+  # "/lib" in {}
+  if path in path2handle:
+    current_dir=path2handle[path][0]
+  else:
+    current_dir=next_handle
+    next_handle+=1
+    path2handle[path]={0:current_dir}
+    handle2path[current_dir]=path
+  # id -> directory list
+  if not current_dir in dir2handle:
+    dir2handle[current_dir]={}
+  for obj in dir:
+    objname=obj[0]
+    fullpath=path+objname
+    if objname in path2handle[path]:
+      current_handle=path2handle[path][objname]
+    else:
+      current_handle=next_handle
+      next_handle+=1
+    if obj[1]==16384: # obj[1]==DIR
+      print(path,"DIR:",obj)
+      if recurse>0:
+        newhandle=ls(fullpath,recurse-1)
+        dir2handle[current_dir][newhandle]=obj
+        if path=="/":
+          parnt="/"
+        else:
+          parnt=path[:-1]
+        objname_=objname+"/"
+        if not objname_ in path2handle[parnt]:
+          path2handle[parnt][objname_]=newhandle
+    else: # obj[1]==FILE
+      dir2handle[current_dir][current_handle]=obj
+      print(path,"FILE:",obj)
+      if not objname in path2handle[path]:
+        path2handle[path][objname]=current_handle
+        handle2path[current_handle]=fullpath
+  return current_dir
+
 # USB PTP "type" 16-bit field
 PTP_USB_CONTAINER_UNDEFINED=const(0)
 PTP_USB_CONTAINER_COMMAND=const(1)
@@ -531,11 +612,14 @@ def GetObjectHandles(cnt):
     # rest are elements of 32-bits
     # each element can be any unique integer
     # actually a objecthandle
-    data=uint32_array(list(dir_handles.keys())) # two directoryies 0xd1 and 0xd2
+    #data=uint32_array(list(dir_handles.keys())) # two directoryies 0xd1 and 0xd2
+    #print(objects(0))
+    data=uint32_array(objects(0))
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
   elif p3 in dir_handles:
-    data=uint32_array(dir_handles.get(p3)) # array of handles in directory
+    #data=uint32_array(dir_handles.get(p3)) # array of handles in directory
+    data=uint32_array(objects(p3)) # array of handles in directory
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
   else:
@@ -581,12 +665,16 @@ def GetObjectInfo(cnt):
   ParentObject=0
   assoc_seq_null=bytearray(10)
   length=0 # zero response currently
-  if p1 in dir_handles: # is this a directory objecthandle
-    ObjectFormat=PTP_OFC_Directory
-    ParentObject=0 # 0 means this file is in root directory
+  if p1 in handle2path: # is this a directory objecthandle
+    objname=basename(p1)
+    if objname[-1]=="/":
+      ObjectFormat=PTP_OFC_Directory
+      objname=objname[:-1]
+    ParentObject=parent(p1) # 0 means this file is in root directory
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
-    name=ucs2_string(dir_names[p1]) # directory name converted
+    #print("objname:",objname)
+    name=ucs2_string(objname.encode()) # directory name converted
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
@@ -896,6 +984,10 @@ def _xfer_cb(ep_addr, result, xferred_bytes):
         usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
     #print("_xfer_cb", ep_addr, result, xferred_bytes, i0_usbd_buf[:xferred_bytes])
+
+# from "/" create handle tree,
+# recurse n dirs deep
+ls("/",3)
 
 # Switch the USB device to our custom USB driver.
 usbd = machine.USBDevice()
