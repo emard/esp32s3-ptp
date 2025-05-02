@@ -21,16 +21,28 @@ dir2handle={}
 DIR=const(16384)
 #FILE=const(32768)
 
-# for given handle find it's parent
+# for given boject handle "oh" find it's parent
 # actually a handle of directory which
 # holds this file
-def parent(handle):
-  path=handle2path[handle]
+def parent(oh):
+  path=handle2path[oh]
   if path[-1]=="/" and path!="/":
     dirname=path[:path[:-1].rfind("/")+1]
   else:
     dirname=path[:path.rfind("/")+1]
   return path2handle[dirname][0]
+
+# get list of objects from directory handle "dh"
+def objects(dh):
+  return list(path2handle[handle2path[dh]].values())[1:]
+
+def basename(oh):
+  fullname=handle2path[oh]
+  if fullname=="/":
+    return "/"
+  if fullname[-1]=="/":
+    return fullname[fullname[:-1].rfind("/")+1:-1]
+  return fullname[fullname.rfind("/")+1:]
 
 # path: full path string
 # recurse: number of subdirectorys to recurse into
