@@ -25,10 +25,11 @@ DIR=const(16384)
 # actually a handle of directory which
 # holds this file
 def parent(handle):
-  fullpath=handle2path[handle]
-  #print("fullpath", fullpath)
-  dirname=fullpath[:fullpath.rfind("/")+1]
-  #print("dirname", dirname)
+  path=handle2path[handle]
+  if path!="/" and path[-1]=="/":
+    dirname=path[:path[:-1].rfind("/")+1]
+  else:
+    dirname=path[:path.rfind("/")+1]
   return path2handle[dirname][0]
 
 # path: full path string
