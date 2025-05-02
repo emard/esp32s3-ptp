@@ -24,8 +24,12 @@ DIR=const(16384)
 # for given handle find it's parent
 # actually a handle of directory which
 # holds this file
-#def parent(handle):
-  
+def parent(handle):
+  fullpath=handle2path[handle]
+  #print("fullpath", fullpath)
+  dirname=fullpath[:fullpath.rfind("/")+1]
+  #print("dirname", dirname)
+  return path2handle[dirname][0]
 
 # path: full path string
 # recurse: number of subdirectorys to recurse into
