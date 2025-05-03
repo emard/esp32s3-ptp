@@ -704,10 +704,16 @@ def GetObject(cnt):
     fullpath=handle2path[p1]
     print(fullpath)
     fd=open(fullpath,"rb")
-    data=fd.readline()
+    filesize=fd.seek(0,2)
+    fd.seek(0)
+    data=fd.read(len(i0_usbd_buf)-12)
+    remain_getobj_len=filesize-len(data)
+    if remain_getobj_len<=0:
+      remain_getobj_len=0
+      fd.close()
+    print("size", filesize, "remain getobj", remain_getobj_len)
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-    fd.close()
   if length==0:
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
@@ -936,7 +942,7 @@ def _open_itf_cb(interface_desc_view):
 # next time. only bulk IN and OUT endpoints have to be supported
 # Interrupt IN endpoint doesn't have to be supported
 def _xfer_cb(ep_addr, result, xferred_bytes):
-    global next_out_cb,delay_next_out_cb
+    global remain_getobj_len,fd
     #print("_xfer_cb", ep_addr, result, xferred_bytes)
     if ep_addr == I0_EP1_OUT:
         # Received data packet from the host, print it out.
@@ -954,6 +960,19 @@ def _xfer_cb(ep_addr, result, xferred_bytes):
         # then prepare entire buffer to be overwritten and call:
         #usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
     elif ep_addr == I0_EP1_IN:
+      if remain_getobj_len:
+        print("remain_getobj_len",remain_getobj_len)
+        #print("readinto", i0_usbd_buf)
+        packet_len=fd.readinto(i0_usbd_buf)
+        remain_getobj_len-=packet_len
+        if remain_getobj_len<=0:
+          remain_getobj_len=0
+          fd.close()
+          print("file close")
+        print(">",end="")
+        print_hexdump(i0_usbd_buf[:packet_len])
+        usbd.submit_xfer(I0_EP1_IN, i0_usbd_buf[:packet_len])
+      else:
         # we have sent our data to host with IN command
         # prepare full buffer to read
         # for next host OUT command
@@ -970,7 +989,6 @@ def _xfer_cb(ep_addr, result, xferred_bytes):
         print("after_irq>",end="")
         print_hex(i0_usbd_buf[:length])
         usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
-
     #print("_xfer_cb", ep_addr, result, xferred_bytes, i0_usbd_buf[:xferred_bytes])
 
 # from "/" create handle tree,
