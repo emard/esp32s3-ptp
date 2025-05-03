@@ -213,8 +213,9 @@ next_handle=0
 path2handle={}
 handle2path={}
 dir2handle={}
+confirm_send_handle=0
 
-# for given boject handle "oh" find it's parent
+# for given object handle "oh" find it's parent
 # actually a handle of directory which
 # holds this file
 def parent(oh):
@@ -741,7 +742,7 @@ def DeleteObject(cnt):
 # currently protocol "works" but
 # "unspecified error -1" appears
 def SendObjectInfo(cnt):
-  global txid,opcode,send_length,send_name,send_dir
+  global txid,opcode,send_length,send_name,send_dir,next_handle,confirm_send_handle
   print("SendObjectInfo")
   print("<",end="")
   print_hex(cnt)
@@ -750,6 +751,8 @@ def SendObjectInfo(cnt):
   opcode=unpack_opcode(cnt) # always 0x100C
   if type==PTP_USB_CONTAINER_COMMAND: # 1
     send_dir,=struct.unpack("<L",cnt[16:20])
+    if send_dir==0xffffffff:
+      send_dir=0
     print("send_dir: 0x%x" % send_dir)
     # prepare full buffer to read from host again
     # host will send another OUT
@@ -758,16 +761,18 @@ def SendObjectInfo(cnt):
     # we just have received data from host
     # host sends in advance file length to be sent
     send_name=get_ucs2_string(cnt[64:])
-    print("send name:", decode_ucs2_string(send_name))
+    str_send_name=decode_ucs2_string(send_name)[:-1].decode()
+    print("send name:", str_send_name)
     send_length,=struct.unpack("<L", cnt[20:24])
     print("send length:", send_length)
     # send OK response to host
     # here we must send extended "OK" response
     # with 3 addional 32-bit fields:
     # storage_id, parend_id, object_id
-    new_handle[0]+=1
-    dir_handles[send_dir][0]=new_handle[0]
-    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,send_dir,dir_handles[send_dir][0])
+    next_handle+=1
+    dir2handle[send_dir][next_handle]=str_send_name
+    confirm_send_handle=next_handle
+    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,send_dir,next_handle)
     print(">",end="")
     print_hex(i0_usbd_buf[:length])
     usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
@@ -814,7 +819,7 @@ def SendObject(cnt):
       #print(">",end="")
       #print_hex(i0_usbd_buf[:length])
       #usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
-      irq_sendobject_complete(dir_handles[send_dir][0])
+      irq_sendobject_complete(confirm_send_handle)
     else:
       # host will send another OUT command
       # prepare full buffer to read again from host
