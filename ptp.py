@@ -435,7 +435,7 @@ def uint32_array(a):
 
 send_name=ucs2_string(b"F1.TXT\0") # initialize file name in d1 directory
 
-length_response=bytearray(1) # length to send response once
+length_response=bytearray([255]) # length to send response once, 255 means no response
 send_response=bytearray(32) # response to send
 
 length_irq_response=bytearray(1) # length to send response once
@@ -711,9 +711,11 @@ def GetObject(cnt):
     if remain_getobj_len<=0:
       remain_getobj_len=0
       fd.close()
+      respond_ok()
+    #else:
+    #  length_response[0]=0 # empty response for unfinished transfer
     print("size", filesize, "remain getobj", remain_getobj_len)
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-    respond_ok()
+    length=PTP_CNT_INIT_LEN_DATA(i0_usbd_buf,12+filesize,PTP_USB_CONTAINER_DATA,opcode,data)
   if length==0:
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
@@ -960,27 +962,34 @@ def _xfer_cb(ep_addr, result, xferred_bytes):
         # then prepare entire buffer to be overwritten and call:
         #usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
     elif ep_addr == I0_EP1_IN:
-      if remain_getobj_len:
-        print("remain_getobj_len",remain_getobj_len)
-        #print("readinto", i0_usbd_buf)
-        packet_len=fd.readinto(i0_usbd_buf)
-        remain_getobj_len-=packet_len
-        if remain_getobj_len<=0:
-          remain_getobj_len=0
-          fd.close()
-          print("file close")
-        print(">",end="")
-        print_hexdump(i0_usbd_buf[:packet_len])
-        usbd.submit_xfer(I0_EP1_IN, i0_usbd_buf[:packet_len])
-      else:
-        # we have sent our data to host with IN command
-        # prepare full buffer to read
-        # for next host OUT command
+      # we have sent our data to host with IN command
+      # prepare full buffer to read
+      # for next host OUT command
+      if length_response[0]!=255:
         if length_response[0]:
           print(">",end="")
           print_hex(send_response[:length_response[0]])
           usbd.submit_xfer(I0_EP1_IN, send_response[:length_response[0]])
-          length_response[0]=0 # flag consumed, prevents recurring
+        #else:
+          #print(">")
+          #usbd.submit_xfer(I0_EP1_IN, send_response[:0])
+        length_response[0]=255 # consumed, prevent recurring
+      else:
+        if remain_getobj_len:
+          print("remain_getobj_len",remain_getobj_len)
+          #print("readinto", i0_usbd_buf)
+          packet_len=fd.readinto(i0_usbd_buf)
+          remain_getobj_len-=packet_len
+          if remain_getobj_len<=0:
+            remain_getobj_len=0
+            fd.close()
+            print("file close")
+            respond_ok() # after this send ok IN response
+          #else:
+          #  length_response[0]=0 # after this send empty IN response
+          print(">",end="")
+          print_hexdump(i0_usbd_buf[:packet_len])
+          usbd.submit_xfer(I0_EP1_IN, i0_usbd_buf[:packet_len])
         else:
           usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
     elif ep_addr == I0_EP2_IN: # IRQ
