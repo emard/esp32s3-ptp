@@ -197,6 +197,8 @@ opcode=0
 send_dir=0 # to which directory we will send object
 send_length=0
 remaining_send_length=0
+remain_getobj_len=0
+fd=None # local open file descriptor
 
 # handles (unique object ids)
 # each dir contains one file so it has one handle
@@ -656,7 +658,7 @@ def GetObjectInfo(cnt):
   length=0 # zero response currently
   if p1 in handle2path:
     fullpath=handle2path[p1]
-    print("filepath",fullpath)
+    print(fullpath)
     stat=os.stat(fullpath)
     objname=basename(p1)
     #if handle2path[p1][-1]=="/":
@@ -689,7 +691,7 @@ def GetObjectInfo(cnt):
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
 def GetObject(cnt):
-  global txid,opcode
+  global txid,opcode,remain_getobj_len,fd
   print("GetObject")
   print("<",end="")
   print_hex(cnt)
@@ -698,11 +700,14 @@ def GetObject(cnt):
   p1,=struct.unpack("<L",cnt[12:16])
   print("p1=%08x" % p1)
   length=0
-  for dh in dir_handles.keys(): # iterate all dirs
-    if p1==dir_handles[dh][0]: # match first file in any dir
-      data=b"file 0x%x\n" % p1
-      length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
-      respond_ok()
+  if p1 in handle2path:
+    fullpath=handle2path[p1]
+    print(fullpath)
+    fd=open(fullpath,"rb")
+    data=fd.readline()
+    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    respond_ok()
+    fd.close()
   if length==0:
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
