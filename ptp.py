@@ -651,7 +651,7 @@ def GetObjectInfo(cnt):
   StorageID=0x10001
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
-  ObjectSize=10
+  #ObjectSize=0
   thumb_image_null=bytearray(26)
   ParentObject=0
   assoc_seq_null=bytearray(10)
@@ -743,7 +743,7 @@ def DeleteObject(cnt):
 # "unspecified error -1" appears
 def SendObjectInfo(cnt):
   global txid,opcode,send_length,send_name,next_handle,current_send_handle
-  global send_parent,send_parent_path
+  global send_parent,send_parent_path,send_fullpath
   print("SendObjectInfo")
   print("<",end="")
   print_hex(cnt)
@@ -768,8 +768,8 @@ def SendObjectInfo(cnt):
     print("send name:", str_send_name)
     send_length,=struct.unpack("<L", cnt[20:24])
     print("send length:", send_length)
-    fullpath=handle2path[send_parent]+str_send_name
-    print("fullpath",fullpath)
+    send_fullpath=handle2path[send_parent]+str_send_name
+    print("fullpath",send_fullpath)
     if str_send_name in path2handle[send_parent_path]:
       current_send_handle=path2handle[send_parent_path][str_send_name]
       # TODO update length after send has finished
@@ -779,7 +779,7 @@ def SendObjectInfo(cnt):
       next_handle+=1
       current_send_handle=next_handle
       path2handle[send_parent_path][str_send_name]=current_send_handle
-      handle2path[current_send_handle]=fullpath
+      handle2path[current_send_handle]=send_fullpath
     dir2handle[send_parent][current_send_handle]=(str_send_name,32768,0,send_length)
     print("current send handle",current_send_handle)
     # send OK response to host
@@ -792,14 +792,16 @@ def SendObjectInfo(cnt):
     usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
 def irq_sendobject_complete(objecthandle):
+  global fd
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,objecthandle)
   print("irq>",end="")
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:length])
+  fd.close()
   #ecp5.prog_close()
 
 def SendObject(cnt):
-  global txid,opcode,send_length,remaining_send_length
+  global txid,opcode,send_length,remaining_send_length,fd
   print("SendObject")
   print("<len(cnt)=",len(cnt),"bytes packet")
   #print("<",end="")
@@ -811,6 +813,7 @@ def SendObject(cnt):
     #ecp5.prog_open()
     # host will send another OUT command
     # prepare full buffer to read again from host
+    fd=open(send_fullpath,"wb")
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
   if type==PTP_USB_CONTAINER_DATA: # 2
     # host has just sent data
@@ -818,6 +821,7 @@ def SendObject(cnt):
     # subtract send_length by incoming payload
     if send_length>0:
       #ecp5.hwspi.write(cnt[12:])
+      fd.write(cnt[12:])
       remaining_send_length=send_length-(len(cnt)-12)
       send_length=0
     print("send_length=",send_length,"remain=",remaining_send_length)
@@ -885,10 +889,11 @@ ptp_opcode_cb = {
 }
 
 def decode_ptp(cnt):
-  global remaining_send_length
+  global remaining_send_length,fd
   if remaining_send_length>0:
     # continue receiving parts of the file
     #ecp5.hwspi.write(cnt)
+    fd.write(cnt)
     remaining_send_length-=len(cnt)
     #print_hexdump(cnt)
     print("<len(cnt)=",len(cnt),"remaining_send_length=", remaining_send_length)
