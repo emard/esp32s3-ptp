@@ -269,13 +269,9 @@ def ls(path,recurse):
       if recurse>0:
         newhandle=ls(fullpath,recurse-1)
         dir2handle[current_dir][newhandle]=obj
-        if path=="/":
-          parnt="/"
-        else:
-          parnt=path[:-1]
         objname_=objname+"/"
-        if not objname_ in path2handle[parnt]:
-          path2handle[parnt][objname_]=newhandle
+        if not objname_ in path2handle[path]:
+          path2handle[path][objname_]=newhandle
     else: # obj[1]==FILE
       dir2handle[current_dir][current_handle]=obj
       print(path,"FILE:",obj)
@@ -726,13 +722,18 @@ def DeleteObject(cnt):
   p=parent(h) # parent dir where to delete
   parent_path=handle2path[p]
   #print("deleting p=",p,"h=",h)
-  filename=basename(h)
-  del(dir2handle[p][h])
+  objname=basename(h)
+  objtype=dir2handle[p][h][1]
   fullpath=handle2path[h]
+  os.unlink(fullpath)
+  del(dir2handle[p][h])
   del(handle2path[h])
   #print("parent path",parent_path)
-  del(path2handle[parent_path][filename])
-  os.unlink(fullpath)
+  if objtype==16384: # dir
+    del(path2handle[parent_path+objname+"/"])
+    del(path2handle[parent_path][objname+"/"])
+  else: # objtype==32768: # file
+    del(path2handle[parent_path][objname])
   print("deleted",fullpath)
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
@@ -996,7 +997,7 @@ def _xfer_cb(ep_addr,result,xferred_bytes):
 
 # from "/" create handle tree,
 # recurse n dirs deep
-ls("/",3)
+ls("/",9)
 
 # Switch the USB device to our custom USB driver.
 usbd = machine.USBDevice()
