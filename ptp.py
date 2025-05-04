@@ -728,6 +728,18 @@ def DeleteObject(cnt):
   print_hex(cnt)
   txid=unpack_txid(cnt)
   opcode=unpack_opcode(cnt) # always 0x100B
+  h,=struct.unpack("<L",cnt[12:16]) # handle to delete
+  p=parent(h) # parent dir where to delete
+  parent_path=handle2path[p]
+  #print("deleting p=",p,"h=",h)
+  filename=basename(h)
+  del(dir2handle[p][h])
+  fullpath=handle2path[h]
+  del(handle2path[h])
+  #print("parent path",parent_path)
+  del(path2handle[parent_path][filename])
+  os.unlink(fullpath)
+  print("deleted",fullpath)
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
