@@ -773,6 +773,9 @@ def SendObjectInfo(cnt):
     print("fullpath",fullpath)
     if str_send_name in path2handle[send_parent_path]:
       current_send_handle=path2handle[send_parent_path][str_send_name]
+      # TODO update length after send has finished
+      old_d2h=dir2handle[send_parent][current_send_handle]
+      dir2handle[send_parent][current_send_handle]=old_d2h[:-1]+(send_length,)
     else:
       next_handle+=1
       current_send_handle=next_handle
@@ -781,7 +784,6 @@ def SendObjectInfo(cnt):
     # here we must send extended "OK" response
     # with 3 addional 32-bit fields:
     # storage_id, parend_id, object_id
-    dir2handle[send_parent][current_send_handle]=str_send_name
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,send_parent,current_send_handle)
     print(">",end="")
     print_hex(i0_usbd_buf[:length])
