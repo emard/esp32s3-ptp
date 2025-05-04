@@ -743,14 +743,6 @@ def DeleteObject(cnt):
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
-# test in gnome nautilus:
-# create 6-byte file "F1.TXT" in user home dir
-# gnome right-click copy
-# open USB camera root folder with already "F1.TXT"
-# gnome right-click paste
-# "F1.TXT" overwrite popup will appear, accept it
-# currently protocol "works" but
-# "unspecified error -1" appears
 def SendObjectInfo(cnt):
   global txid,opcode,send_length,send_name,next_handle,current_send_handle
   global send_parent,send_parent_path,send_fullpath
@@ -773,6 +765,8 @@ def SendObjectInfo(cnt):
   if type==PTP_USB_CONTAINER_DATA: # 2
     # we just have received data from host
     # host sends in advance file length to be sent
+    send_objtype,=struct.unpack("<H",cnt[16:18])
+    print("send objtype 0x%04x" % send_objtype)
     send_name=get_ucs2_string(cnt[64:])
     str_send_name=decode_ucs2_string(send_name)[:-1].decode()
     print("send name:", str_send_name)
@@ -788,9 +782,19 @@ def SendObjectInfo(cnt):
     else:
       next_handle+=1
       current_send_handle=next_handle
-      path2handle[send_parent_path][str_send_name]=current_send_handle
-      handle2path[current_send_handle]=send_fullpath
-    dir2handle[send_parent][current_send_handle]=(str_send_name,32768,0,send_length)
+      str_send_name_p2h=str_send_name
+      send_fullpath_h2p=send_fullpath
+      if send_objtype==0x3001: # dir
+        str_send_name_p2h+="/"
+        send_fullpath_h2p+="/"
+        path2handle[send_fullpath_h2p]={0:current_send_handle}
+        os.mkdir(send_fullpath)
+      path2handle[send_parent_path][str_send_name_p2h]=current_send_handle
+      handle2path[current_send_handle]=send_fullpath_h2p
+    vfs_objtype=32768 # default is file
+    if send_objtype==0x3001:
+      vfs_objtype=16384 # directory
+    dir2handle[send_parent][current_send_handle]=(str_send_name,vfs_objtype,0,send_length)
     print("current send handle",current_send_handle)
     # send OK response to host
     # here we must send extended "OK" response
