@@ -504,10 +504,7 @@ def GetDeviceInfo(cnt):
   extension=b"\0"
   #extension=ucs2_string(b"microsoft.com: 1.0\0")
   functional_mode=struct.pack("<H", 0) # 0: standard mode
-  operations=uint16_array((
-  0x1001,0x1002,0x1003,0x1004,
-  0x1005,0x1007,0x1008,
-  0x1009,0x100B,0x100C,0x100D))
+  operations=uint16_array(ptp_opcode_cb) # array of 16-bit opcodes (keys)
   events=uint16_array((PTP_EC_ObjectInfoChanged,))
   deviceprops=uint16_array((PTP_DPC_DateTime,))
   captureformats=uint16_array((PTP_OFC_EXIF_JPEG,))
