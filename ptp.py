@@ -867,19 +867,6 @@ def CloseSession(cnt):
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
-def CANON_GetObjectInfoEx(cnt):
-  print("CANON_GetObjectInfoEx")
-  global txid,opcode
-  print("<",end="")
-  print_hex(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt)
-  print("opcode=%04x" % opcode)
-  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-  print(">",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
-
 # opcodes starting from 0x1000 - callback functions
 # more in libgphoto2 ptp.h and ptp.c
 ptp_opcode_cb = {
@@ -897,29 +884,7 @@ ptp_opcode_cb = {
   0x100B:DeleteObject,
   0x100C:SendObjectInfo,
   0x100D:SendObject,
-  # 0x9021:CANON_GetObjectInfoEx,
 }
-
-def decode_ptp(cnt):
-  global remaining_send_length,fd
-  if remaining_send_length>0:
-    # continue receiving parts of the file
-    #ecp5.hwspi.write(cnt)
-    fd.write(cnt)
-    remaining_send_length-=len(cnt)
-    #print_hexdump(cnt)
-    print("<len(cnt)=",len(cnt),"remaining_send_length=", remaining_send_length)
-    if remaining_send_length>0:
-      # host will send another OUT command
-      # prepare full buffer to read again from host
-      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
-    else:
-      # signal to host we have received entire file
-      irq_sendobject_complete(current_send_handle)
-  else:
-    #length,type,code,trans_id = unpack_ptp_hdr(cnt)
-    code,=struct.unpack("<H",cnt[6:8])
-    ptp_opcode_cb[code](cnt)
 
 # EP0 control requests handlers
 def handle_out(bRequest, wValue, buf):
@@ -974,7 +939,25 @@ def _open_itf_cb(interface_desc_view):
   #print("_open_itf_cb", bytes(interface_desc_view))
 
 def ep1_out_done(result, xferred_bytes):
-  decode_ptp(i0_usbd_buf[:xferred_bytes])
+  global remaining_send_length,fd
+  if remaining_send_length>0:
+    # continue receiving parts of the file
+    #ecp5.hwspi.write(cnt)
+    fd.write(i0_usbd_buf[:xferred_bytes])
+    remaining_send_length-=xferred_bytes
+    #print_hexdump(cnt)
+    print("<len(cnt)=",xferred_bytes,"remaining_send_length=", remaining_send_length)
+    if remaining_send_length>0:
+      # host will send another OUT command
+      # prepare full buffer to read again from host
+      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
+    else:
+      # signal to host we have received entire file
+      irq_sendobject_complete(current_send_handle)
+  else:
+    #length,type,code,trans_id = unpack_ptp_hdr(cnt)
+    code,=struct.unpack("<H",i0_usbd_buf[6:8])
+    ptp_opcode_cb[code](i0_usbd_buf[:xferred_bytes])
 
 def ep1_in_done(result, xferred_bytes):
   global remain_getobj_len,fd
