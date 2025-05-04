@@ -1,12 +1,6 @@
 # esp32s3 micropython >= 1.24
 
-# suckless tool for FPGA programming
-# creates 2 directories "FLASH" and "FPGA"
-# using USB PTP (picture transfer protocol)
-
-# copy/paste or drag'n'drop a bitstream file into
-# "FPGA" directory and it will be loaded into FPGA.
-
+# file browser using USB PTP protocol
 # tested on linux gnome and windows 10
 
 # protocol info:
