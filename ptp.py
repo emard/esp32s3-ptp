@@ -966,65 +966,56 @@ def _control_xfer_cb(stage, request):
 
 # USB callback when our custom USB interface is opened by the host.
 def _open_itf_cb(interface_desc_view):
-    #print("_open_itf_cb", bytes(interface_desc_view))
-    # Prepare to receive first data packet on the OUT endpoint.
-    if interface_desc_view[11] == I0_EP1_IN:
-      #print("open i0")
-      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
-    #print("_open_itf_cb", bytes(interface_desc_view))
+  #print("_open_itf_cb", bytes(interface_desc_view))
+  # Prepare to receive first data packet on the OUT endpoint.
+  if interface_desc_view[11] == I0_EP1_IN:
+    #print("open i0")
+    usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
+  #print("_open_itf_cb", bytes(interface_desc_view))
 
-# USB callback when a data transfer (IN or OUT) has completed.
-# here device must "predict" will host send IN or OUT command
-# next time. only bulk IN and OUT endpoints have to be supported
-# Interrupt IN endpoint doesn't have to be supported
-def _xfer_cb(ep_addr, result, xferred_bytes):
-    global remain_getobj_len,fd
-    #print("_xfer_cb", ep_addr, result, xferred_bytes)
-    if ep_addr == I0_EP1_OUT:
-        # Received data packet from the host, print it out.
-        #print(i0_usbd_buf)
-        # host has sent us data in OUT call,
-        # analyze received data:
-        decode_ptp(i0_usbd_buf[:xferred_bytes])
-        # decode_ptp() should
-        # predict what will host do next time,
-        # will host request IN or OUT:
-        # if it will be IN (host requests that we send)
-        # then it should fill buffer with data, set length and call:
-        #usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
-        # if it will be OUT (host sends to us)
-        # then prepare entire buffer to be overwritten and call:
-        #usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
-    elif ep_addr == I0_EP1_IN:
-      # we have sent our data to host with IN command
-      # prepare full buffer to read
-      # for next host OUT command
-      if length_response[0]:
-        print(">",end="")
-        print_hex(send_response[:length_response[0]])
-        usbd.submit_xfer(I0_EP1_IN, send_response[:length_response[0]])
-        length_response[0]=0 # consumed, prevent recurring
-      else:
-        if remain_getobj_len:
-          #print("remain_getobj_len",remain_getobj_len)
-          packet_len=fd.readinto(i0_usbd_buf)
-          remain_getobj_len-=packet_len
-          if remain_getobj_len<=0:
-            remain_getobj_len=0
-            fd.close()
-            respond_ok() # after this send ok IN response
-          #print(">",end="")
-          #print_hexdump(i0_usbd_buf[:packet_len])
-          usbd.submit_xfer(I0_EP1_IN, i0_usbd_buf[:packet_len])
-        else:
-          usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
-    elif ep_addr == I0_EP2_IN: # IRQ
-        # after IRQ data sent reply OK to host
-        length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-        print("after_irq>",end="")
-        print_hex(i0_usbd_buf[:length])
-        usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
-    #print("_xfer_cb", ep_addr, result, xferred_bytes, i0_usbd_buf[:xferred_bytes])
+def ep1_out_done(result, xferred_bytes):
+  decode_ptp(i0_usbd_buf[:xferred_bytes])
+
+def ep1_in_done(result, xferred_bytes):
+  global remain_getobj_len,fd
+  # we have sent our data to host with IN command
+  # prepare full buffer to read
+  # for next host OUT command
+  if length_response[0]:
+    print(">",end="")
+    print_hex(send_response[:length_response[0]])
+    usbd.submit_xfer(I0_EP1_IN, send_response[:length_response[0]])
+    length_response[0]=0 # consumed, prevent recurring
+  else:
+    if remain_getobj_len:
+      #print("remain_getobj_len",remain_getobj_len)
+      packet_len=fd.readinto(i0_usbd_buf)
+      remain_getobj_len-=packet_len
+      if remain_getobj_len<=0:
+        remain_getobj_len=0
+        fd.close()
+        respond_ok() # after this send ok IN response
+      #print(">",end="")
+      #print_hexdump(i0_usbd_buf[:packet_len])
+      usbd.submit_xfer(I0_EP1_IN, i0_usbd_buf[:packet_len])
+    else:
+      usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
+
+def ep2_in_done(result, xferred_bytes):
+  # after IRQ data sent reply OK to host
+  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+  print("after_irq>",end="")
+  print_hex(i0_usbd_buf[:length])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+
+ep_addr_cb = {
+  I0_EP1_OUT:ep1_out_done,
+  I0_EP1_IN:ep1_in_done,
+  I0_EP2_IN:ep2_in_done
+}
+
+def _xfer_cb(ep_addr,result,xferred_bytes):
+  ep_addr_cb[ep_addr](result,xferred_bytes)
 
 # from "/" create handle tree,
 # recurse n dirs deep
@@ -1037,11 +1028,11 @@ usbd.builtin_driver = usbd.BUILTIN_NONE
 # if print() is neccessary do it at the
 # end of _cb() function
 usbd.config(
-    desc_dev=_desc_dev,
-    desc_cfg=_desc_cfg,
-    desc_strs=_desc_strs,
-    control_xfer_cb=_control_xfer_cb,
-    open_itf_cb=_open_itf_cb,
-    xfer_cb=_xfer_cb,
+  desc_dev=_desc_dev,
+  desc_cfg=_desc_cfg,
+  desc_strs=_desc_strs,
+  control_xfer_cb=_control_xfer_cb,
+  open_itf_cb=_open_itf_cb,
+  xfer_cb=_xfer_cb,
 )
 usbd.active(1)
