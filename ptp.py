@@ -900,7 +900,7 @@ def decode_ptp(cnt):
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
     else:
       # signal to host we have received entire file
-      irq_sendobject_complete(dir_handles[send_parent][0])
+      irq_sendobject_complete(current_send_handle)
   else:
     #length,type,code,trans_id = unpack_ptp_hdr(cnt)
     code,=struct.unpack("<H",cnt[6:8])
