@@ -661,16 +661,17 @@ def GetObjectInfo(cnt):
   if p1 in handle2path:
     fullpath=handle2path[p1]
     print(fullpath)
-    stat=os.stat(fullpath)
-    objname=basename(p1)
+    ParentObject=parent(p1) # 0 means this file is in root directory
+    (objname,objtype,_,objsize)=dir2handle[ParentObject][p1]
+    #stat=os.stat(fullpath)
+    #objname=basename(p1)
     #if handle2path[p1][-1]=="/":
-    if stat[0]==16384: # dir
+    if objtype==16384: # dir
       ObjectFormat=PTP_OFC_Directory
       ObjectSize=0
     else: # stat[0]=32768 # file
       ObjectFormat=PTP_OFC_Text
-      ObjectSize=stat[6]
-    ParentObject=parent(p1) # 0 means this file is in root directory
+      ObjectSize=objsize
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
     #print("objname:",objname)
@@ -775,10 +776,13 @@ def SendObjectInfo(cnt):
       current_send_handle=path2handle[send_parent_path][str_send_name]
       # TODO update length after send has finished
       old_d2h=dir2handle[send_parent][current_send_handle]
-      dir2handle[send_parent][current_send_handle]=old_d2h[:-1]+(send_length,)
+      #dir2handle[send_parent][current_send_handle]=old_d2h[:-1]+(send_length,)
     else:
       next_handle+=1
       current_send_handle=next_handle
+      path2handle[send_parent_path][str_send_name]=current_send_handle
+      handle2path[current_send_handle]=fullpath
+    dir2handle[send_parent][current_send_handle]=(str_send_name,32768,0,send_length)
     print("current send handle",current_send_handle)
     # send OK response to host
     # here we must send extended "OK" response
