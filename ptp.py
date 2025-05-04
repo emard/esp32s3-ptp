@@ -601,8 +601,11 @@ def GetObjectHandles(cnt):
   dirhandle=p3
   if p3==0xFFFFFFFF or p3==0x10001: # root directory
     dirhandle=0
-  # TODO generate listing of this directory
+  # TODO generate ls("",0) for current directory only
   data=uint32_array(objects(dirhandle))
+  # FIXME when directory has many entries > 256 data
+  # would not fit in one 1024 byte block
+  # block continuation neede
   length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
   print(">",end="")
