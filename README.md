@@ -10,7 +10,9 @@ to the host. Filesystem is not block based like FAT so it doesn't need some
 Opens the filesystem in file browser window.
 it appears like an USB stick.
 
-For commandline gnome mounts it here:
+For commandline and scripting it is useful
+to know that when user is logged to gnome,
+then PTP is mounted here:
 
     ls /run/user/$UID/gvfs/gphoto2\:host\=iManufacturer_iProduct_iSerial/
 
@@ -22,15 +24,6 @@ which I haven't yet tried.
 When gnome is stopped (service gdm3 stop)
 PTP filesystem can be accessed
 by commandline "gphoto2".
-
-works:
-
-    browsing folders
-    read, write, delete files (including rename, copy, move)
-
-doesn't yet work (TODO):
-
-    create delete folders
 
 # gphoto usage
 
