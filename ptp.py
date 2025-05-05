@@ -418,7 +418,7 @@ def get_ucs2_string(s):
 def uint32_array(a):
   return struct.pack("<L"+"L"*len(a),len(a),*a)
 
-send_name=ucs2_string(b"F1.TXT\0") # initialize file name in d1 directory
+# send_name=ucs2_string(b"F1.TXT\0") # initialize file name in d1 directory
 
 length_response=bytearray(1) # length to send response once
 send_response=bytearray(32) # response to send
@@ -622,11 +622,9 @@ def GetObjectHandles(cnt):
 # PTP_oi_SequenceNumber		48
 # PTP_oi_filenamelen		52
 # PTP_oi_Filename               53
-counter=1
 
 def GetObjectInfo(cnt):
   global txid,opcode
-  global counter
   print("GetObjectInfo")
   print("<",end="")
   print_hex(cnt)
