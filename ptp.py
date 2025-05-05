@@ -66,7 +66,11 @@ MANUFACTURER=b"iManufacturer"
 PRODUCT=b"iProduct"
 SERIAL=b"iSerial"
 CONFIGURATION=b"iConfiguration"
-# if interface is named "MTP" then protocol will be MTP instead of PTP
+# if interface is named "MTP" then host will
+# use MTP protocol.
+# Any other name will make it use PTP protocol.
+# currently MTP doesn't work with linux
+#INTERFACE0=b"MTP"
 INTERFACE0=b"iInterface0"
 INTERFACE1=b"iInterface1"
 VERSION=b"3.1.8"
