@@ -4,20 +4,15 @@
 # tested on linux gnome and windows 10
 
 # protocol info:
+# https://github.com/gphoto/libgphoto2/tree/master/camlibs/ptp2
 # git clone https://github.com/gphoto/libgphoto2
 # cd libgphoto2/camlibs/ptp2
 # files ptp-pack.c ptp.c ptp.h
-# https://github.com/gphoto/libgphoto2/tree/master/camlibs/ptp2
-# https://github.com/capaulson/pyptp
-# https://forum.arduino.cc/t/using-ptp-to-control-camera-on-m0-board/898849
 
-# Implementation of a very simple, custom USB device in Python.  The device has an
-# IN and OUT endpoint and interrupt IN.
-#
 # To run, just execute this file on a device with
 # machine.USBDevice support,
-# this is just fresh enough micropython binary.
-# connected with usb-serial to see serial debug prints
+# normal micropython binary.
+# connect with usb-serial to see debug prints
 #
 # $ mpremote cp ptp.py :/
 # $ mpremote
@@ -27,17 +22,6 @@
 # >>> import ptp
 #
 # The device will then change to the custom USB device.
-#
-# for debugging if you change USB class to vendor
-# specific (255) OS will not claim the device so
-# user-space test can run
-#
-# $ python hostptp.py
-#
-# You'll need to have `pyusb` installed via
-# `pip install pyusb` to run the host PC code.
-# udev rule is needed for user
-# to access the custom USB device.
 
 import machine, struct, time, os
 #import ecp5
