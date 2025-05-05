@@ -423,8 +423,6 @@ def get_ucs2_string(s):
 def uint32_array(a):
   return struct.pack("<L"+"L"*len(a),len(a),*a)
 
-# send_name=ucs2_string(b"F1.TXT\0") # initialize file name in d1 directory
-
 length_response=bytearray(1) # length to send response once
 send_response=bytearray(32) # response to send
 
@@ -445,10 +443,6 @@ def OpenSession(cnt):
   txid,sesid=struct.unpack("<LL",cnt[8:16])
   #print("txid=",txid,"sesid=",sesid)
   # prepare response 0c 00 00 00  03 00  01 20  00 00 00 00
-  #ptp_response_offset=0
-  #ptp_response_length=0
-  # ptp_response_data[:ptp_response_length]=bytearray(4) # array of 0
-  #length=next_ptp_response_data(cnt)
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   #print(">",end="")
   #print_hex(i0_usbd_buf)
@@ -463,7 +457,7 @@ PTP_EC_ObjectInfoChanged=const(0x4007)
 
 # device properties
 PTP_DPC_DateTime=const(0x5011)
-# image formats 
+# file formats
 PTP_OFC_Undefined=const(0x3000)
 PTP_OFC_Directory=const(0x3001)
 PTP_OFC_Defined=const(0x3800)
@@ -594,12 +588,9 @@ def GetObjectHandles(cnt):
   print_hex(cnt)
   _,_,opcode,txid=unpack_ptp_hdr(cnt)
   # opcode 0x1007
-  # unpack 3 parameters
-  p1,p2,p3=struct.unpack("<LLL",cnt[12:24])
-  print("p1=%08x p2=%08x p3=%08x" % (p1,p2,p3))
-  # prepare response depending on p1-3 parameters
-  dirhandle=p3
-  if p3==0xFFFFFFFF or p3==0x10001: # root directory
+  # unpack parameter
+  dirhandle,=struct.unpack("<L",cnt[20:24])
+  if dirhandle==0xFFFFFFFF or dirhandle==0x10001: # root directory
     dirhandle=0
   ls(handle2path[dirhandle],1)
   data=uint32_array(objects(dirhandle))
@@ -636,16 +627,13 @@ def GetObjectInfo(cnt):
   print("<",end="")
   print_hex(cnt)
   _,_,opcode,txid=unpack_ptp_hdr(cnt)
-  #txid=unpack_txid(cnt)
   # opcode 0x1008
   p1,=struct.unpack("<L",cnt[12:16])
   print("p1=%08x" % p1)
   StorageID=0x10001
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
-  #ObjectSize=0
   thumb_image_null=bytearray(26)
-  ParentObject=0
   assoc_seq_null=bytearray(10)
   length=0 # zero response currently
   if p1 in handle2path:
@@ -690,11 +678,10 @@ def GetObject(cnt):
   print_hex(cnt)
   _,_,opcode,txid=unpack_ptp_hdr(cnt)
   # opcode 0x1009
-  p1,=struct.unpack("<L",cnt[12:16])
-  print("p1=%08x" % p1)
+  objh,=struct.unpack("<L",cnt[12:16])
   length=0
-  if p1 in handle2path:
-    fullpath=handle2path[p1]
+  if objh in handle2path:
+    fullpath=handle2path[objh]
     print(fullpath)
     fd=open(fullpath,"rb")
     filesize=fd.seek(0,2)
@@ -749,8 +736,6 @@ def SendObjectInfo(cnt):
   print("<",end="")
   print_hex(cnt)
   _,type,opcode,txid=unpack_ptp_hdr(cnt)
-  #type=unpack_type(cnt)
-  #txid=unpack_txid(cnt)
   # opcode= always 0x100C
   if type==PTP_USB_CONTAINER_COMMAND: # 1
     send_parent,=struct.unpack("<L",cnt[16:20])
@@ -815,21 +800,20 @@ def irq_sendobject_complete(objecthandle):
   fd.close()
   #ecp5.prog_close()
 
+# FIXME readinto first block instead of copy
 def SendObject(cnt):
   global txid,opcode,send_length,remaining_send_length,fd
   print("SendObject")
-  print("<len(cnt)=",len(cnt),"bytes packet")
+  #print("<len(cnt)=",len(cnt),"bytes packet")
   #print("<",end="")
   #print_hex(cnt)
   _,type,opcode,txid=unpack_ptp_hdr(cnt)
-  #type=unpack_type(cnt)
-  #txid=unpack_txid(cnt)
   # opcode 0x100D
   if type==PTP_USB_CONTAINER_COMMAND: # 1
     #ecp5.prog_open()
+    fd=open(send_fullpath,"wb")
     # host will send another OUT command
     # prepare full buffer to read again from host
-    fd=open(send_fullpath,"wb")
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
   if type==PTP_USB_CONTAINER_DATA: # 2
     # host has just sent data
@@ -840,19 +824,13 @@ def SendObject(cnt):
       fd.write(cnt[12:])
       remaining_send_length=send_length-(len(cnt)-12)
       send_length=0
-    print("send_length=",send_length,"remain=",remaining_send_length)
-
+    #print("send_length=",send_length,"remain=",remaining_send_length)
     # if host has sent all bytes it promised to send
     # report it to the host that file is complete
     if remaining_send_length<=0:
-      # load interrupt response of object changed
-      # first sched irq and after irq reply ok to host
-      # report object 0xf1 (F1.TXT) changed
-      # after irq reply OK to host
-      #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+      # send irq, after irq reply OK to host
       #print(">",end="")
       #print_hex(i0_usbd_buf[:length])
-      #usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
       irq_sendobject_complete(current_send_handle)
     else:
       # host will send another OUT command
@@ -865,7 +843,6 @@ def CloseSession(cnt):
   print("<",end="")
   print_hex(cnt)
   _,_,opcode,txid=unpack_ptp_hdr(cnt)
-  #txid=unpack_txid(cnt)
   # opcode 0x1007
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
@@ -915,7 +892,6 @@ def _control_xfer_cb(stage, request):
   print("_control_xfer_cb", stage, bytes(request))
   bmRequestType, bRequest, wValue, wIndex, wLength = struct.unpack("<BBHHH", request)
   if stage == 1:  # SETUP
-    # BUG USB_REQ_TYPE_VENDOR requests don't work
     if bmRequestType == USB_DIR_OUT | USB_REQ_TYPE_CLASS | USB_REQ_RECIP_DEVICE:
       # Data coming from host, prepare to receive it.
       return memoryview(usb_buf)[:wLength]
@@ -936,10 +912,8 @@ def _control_xfer_cb(stage, request):
 
 # USB callback when our custom USB interface is opened by the host.
 def _open_itf_cb(interface_desc_view):
-  #print("_open_itf_cb", bytes(interface_desc_view))
   # Prepare to receive first data packet on the OUT endpoint.
   if interface_desc_view[11] == I0_EP1_IN:
-    #print("open i0")
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
   #print("_open_itf_cb", bytes(interface_desc_view))
 
@@ -951,7 +925,7 @@ def ep1_out_done(result, xferred_bytes):
     fd.write(i0_usbd_buf[:xferred_bytes])
     remaining_send_length-=xferred_bytes
     #print_hexdump(cnt)
-    print("<len(cnt)=",xferred_bytes,"remaining_send_length=", remaining_send_length)
+    #print("<len(cnt)=",xferred_bytes,"remaining_send_length=", remaining_send_length)
     if remaining_send_length>0:
       # host will send another OUT command
       # prepare full buffer to read again from host
@@ -960,15 +934,12 @@ def ep1_out_done(result, xferred_bytes):
       # signal to host we have received entire file
       irq_sendobject_complete(current_send_handle)
   else:
-    #length,type,code,trans_id = unpack_ptp_hdr(cnt)
     code,=struct.unpack("<H",i0_usbd_buf[6:8])
     ptp_opcode_cb[code](i0_usbd_buf[:xferred_bytes])
 
 def ep1_in_done(result, xferred_bytes):
   global remain_getobj_len,fd
-  # we have sent our data to host with IN command
-  # prepare full buffer to read
-  # for next host OUT command
+  # prepare full buffer to read for next host OUT command
   if length_response[0]:
     print(">",end="")
     print_hex(send_response[:length_response[0]])
@@ -1016,9 +987,6 @@ ls("/",0)
 # Switch the USB device to our custom USB driver.
 usbd = machine.USBDevice()
 usbd.builtin_driver = usbd.BUILTIN_NONE
-# avoid print() in *_cb functions
-# if print() is neccessary do it at the
-# end of _cb() function
 usbd.config(
   desc_dev=_desc_dev,
   desc_cfg=_desc_cfg,
