@@ -788,6 +788,7 @@ def SendObjectInfo(cnt):
         str_send_name_p2h+="/"
         send_fullpath_h2p+="/"
         path2handle[send_fullpath_h2p]={0:current_send_handle}
+        dir2handle[current_send_handle]={}
         os.mkdir(send_fullpath)
       path2handle[send_parent_path][str_send_name_p2h]=current_send_handle
       handle2path[current_send_handle]=send_fullpath_h2p
