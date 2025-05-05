@@ -66,6 +66,7 @@ MANUFACTURER=b"iManufacturer"
 PRODUCT=b"iProduct"
 SERIAL=b"iSerial"
 CONFIGURATION=b"iConfiguration"
+# if interface is named "MTP" then protocol will be MTP instead of PTP
 INTERFACE0=b"iInterface0"
 INTERFACE1=b"iInterface1"
 VERSION=b"3.1.8"
