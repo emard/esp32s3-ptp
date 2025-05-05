@@ -53,7 +53,7 @@ CONFIGURATION=b"iConfiguration"
 # if interface is named "MTP" then host will
 # use MTP protocol.
 # Any other name will make it use PTP protocol.
-# currently MTP doesn't work with linux
+# currently MTP file read doesn't work in linux
 #INTERFACE0=b"MTP"
 INTERFACE0=b"iInterface0"
 INTERFACE1=b"iInterface1"
