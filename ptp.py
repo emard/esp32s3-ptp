@@ -375,14 +375,14 @@ def PTP_CNT_INIT_LEN_DATA(cnt,length,type,code,data):
 def Undefined(cnt):
   print("undefined opcode")
 
-def unpack_type(cnt):
-  return struct.unpack("<H",cnt[4:6])[0]
+#def unpack_type(cnt):
+#  return struct.unpack("<H",cnt[4:6])[0]
 
-def unpack_opcode(cnt):
-  return struct.unpack("<H",cnt[6:8])[0]
+#def unpack_opcode(cnt):
+#  return struct.unpack("<H",cnt[6:8])[0]
 
-def unpack_txid(cnt):
-  return struct.unpack("<L",cnt[8:12])[0]
+#def unpack_txid(cnt):
+#  return struct.unpack("<L",cnt[8:12])[0]
 
 
 # DeviceInfo pack/unpack
@@ -480,8 +480,8 @@ def GetDeviceInfo(cnt):
   print("GetDeviceInfo")
   print("<",end="")
   print_hex(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x1001
+  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  # opcode 0x1001
   # prepare response: device info standard 1.00 = 100
   header=struct.pack("<HLH", 100, 6, 100)
   extension=b"\0"
@@ -516,8 +516,8 @@ def GetStorageIDs(cnt):
   print("GetStorageIDs")
   print("<",end="")
   print_hex(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x1004
+  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  # opcode 0x1004
   # prepare response
   # actually a PTP array
   # first 32-bit is length (number of elements, actually storage drives)
@@ -557,8 +557,8 @@ def GetStorageInfo(cnt):
   print("GetStorageInfo")
   print("<",end="")
   print_hex(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x1005
+  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  # opcode 0x1005
   # prepare response
   StorageType=STORAGE_FIXED_MEDIA
   FilesystemType=2
@@ -585,8 +585,8 @@ def GetObjectHandles(cnt):
   print("GetObjectHandles")
   print("<",end="")
   print_hex(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x1007
+  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  # opcode 0x1007
   # unpack 3 parameters
   p1,p2,p3=struct.unpack("<LLL",cnt[12:24])
   print("p1=%08x p2=%08x p3=%08x" % (p1,p2,p3))
@@ -630,8 +630,9 @@ def GetObjectInfo(cnt):
   print("GetObjectInfo")
   print("<",end="")
   print_hex(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x1008
+  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  #txid=unpack_txid(cnt)
+  # opcode 0x1008
   p1,=struct.unpack("<L",cnt[12:16])
   print("p1=%08x" % p1)
   StorageID=0x10001
@@ -682,8 +683,8 @@ def GetObject(cnt):
   print("GetObject")
   print("<",end="")
   print_hex(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x1009
+  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  # opcode 0x1009
   p1,=struct.unpack("<L",cnt[12:16])
   print("p1=%08x" % p1)
   length=0
@@ -712,8 +713,8 @@ def DeleteObject(cnt):
   print("DeleteObject")
   print("<",end="")
   print_hex(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x100B
+  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  # opcode 0x100B
   h,=struct.unpack("<L",cnt[12:16]) # handle to delete
   p=parent(h) # parent dir where to delete
   parent_path=handle2path[p]
@@ -742,9 +743,10 @@ def SendObjectInfo(cnt):
   print("SendObjectInfo")
   print("<",end="")
   print_hex(cnt)
-  type=unpack_type(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x100C
+  _,type,opcode,txid=unpack_ptp_hdr(cnt)
+  #type=unpack_type(cnt)
+  #txid=unpack_txid(cnt)
+  # opcode= always 0x100C
   if type==PTP_USB_CONTAINER_COMMAND: # 1
     send_parent,=struct.unpack("<L",cnt[16:20])
     if send_parent==0xffffffff:
@@ -814,9 +816,10 @@ def SendObject(cnt):
   print("<len(cnt)=",len(cnt),"bytes packet")
   #print("<",end="")
   #print_hex(cnt)
-  type=unpack_type(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x100D
+  _,type,opcode,txid=unpack_ptp_hdr(cnt)
+  #type=unpack_type(cnt)
+  #txid=unpack_txid(cnt)
+  # opcode 0x100D
   if type==PTP_USB_CONTAINER_COMMAND: # 1
     #ecp5.prog_open()
     # host will send another OUT command
@@ -856,8 +859,9 @@ def CloseSession(cnt):
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  txid=unpack_txid(cnt)
-  opcode=unpack_opcode(cnt) # always 0x1007
+  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  #txid=unpack_txid(cnt)
+  # opcode 0x1007
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
