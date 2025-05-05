@@ -580,6 +580,8 @@ def GetStorageInfo(cnt):
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
+# for given handle id of a directory
+# returns array of handles
 def GetObjectHandles(cnt):
   global txid,opcode
   print("GetObjectHandles")
@@ -594,7 +596,7 @@ def GetObjectHandles(cnt):
   dirhandle=p3
   if p3==0xFFFFFFFF or p3==0x10001: # root directory
     dirhandle=0
-  # TODO generate ls("",0) for current directory only
+  ls(handle2path[dirhandle],1)
   data=uint32_array(objects(dirhandle))
   # FIXME when directory has many entries > 256 data
   # would not fit in one 1024 byte block
@@ -1000,7 +1002,11 @@ def _xfer_cb(ep_addr,result,xferred_bytes):
 
 # from "/" create handle tree,
 # recurse n dirs deep
-ls("/",9)
+# lazy browsing to save memory
+# intialy do not fetch full tree
+# but only the root. Browsing
+# later will fetch subdirs on-demand
+ls("/",0)
 
 # Switch the USB device to our custom USB driver.
 usbd = machine.USBDevice()
