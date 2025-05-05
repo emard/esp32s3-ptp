@@ -195,13 +195,6 @@ remaining_send_length=0
 remain_getobj_len=0
 fd=None # local open file descriptor
 
-# handles (unique object ids)
-# each dir contains one file so it has one handle
-dir_handles={0xd1:[0xf1],0xd2:[0xf2]}
-dir_names={0xd1:b"FPGA\0",0xd2:b"FLASH\0"}
-
-new_handle=[0xf3] # increments, newly uploaded file will get this handle
-
 # for ls() generating vfs directory tree
 # global handle incremented
 next_handle=0
