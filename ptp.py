@@ -369,9 +369,9 @@ def uint16_array(a):
   return struct.pack("<L"+"H"*len(a),len(a),*a)
 
 # pack a bytearray string as 16-bit ucs2 string for device info
-def ucs2_string(s):
-  if len(s):
-    return struct.pack("<B"+"H"*len(s),len(s),*s)
+def ucs2_string(b):
+  if len(b):
+    return struct.pack("<B"+"H"*(len(b)+1),len(b)+1,*b,0)
   return b"\0"
 
 def decode_ucs2_string(s):
@@ -450,7 +450,7 @@ def GetDeviceInfo(cnt):
   # prepare response: device info standard 1.00 = 100
   header=struct.pack("<HLH", 100, 6, 100)
   extension=b"\0"
-  #extension=ucs2_string(b"microsoft.com: 1.0\0")
+  #extension=ucs2_string(b"microsoft.com: 1.0")
   functional_mode=struct.pack("<H", 0) # 0: standard mode
   #operations=uint16_array(list((ptp_opcode_cb.keys()))) # human readable
   operations=uint16_array(ptp_opcode_cb) # short of previous line
@@ -465,10 +465,10 @@ def GetDeviceInfo(cnt):
   PTP_OFC_EXIF_JPEG,
   PTP_OFC_WAV,
   PTP_OFC_Defined,))
-  manufacturer=ucs2_string(MANUFACTURER+b"\0")
-  model=ucs2_string(PRODUCT+b"\0")
-  deviceversion=ucs2_string(VERSION+b"\0")
-  serialnumber=ucs2_string(SERIAL+b"\0")
+  manufacturer=ucs2_string(MANUFACTURER)
+  model=ucs2_string(PRODUCT)
+  deviceversion=ucs2_string(VERSION)
+  serialnumber=ucs2_string(SERIAL)
   data=header+extension+functional_mode+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
   length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
@@ -535,8 +535,8 @@ def GetStorageInfo(cnt):
   MaxCapability=blksize*blkmax
   FreeSpaceInBytes=blksize*blkfree
   FreeSpaceInImages=0x10000
-  StorageDescription=ucs2_string(STORAGE+b"\0")
-  VolumeLabel=ucs2_string(VOLUME+b"\0")
+  StorageDescription=ucs2_string(STORAGE)
+  VolumeLabel=ucs2_string(VOLUME)
   hdr=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
   data=hdr+StorageDescription+VolumeLabel
   length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
@@ -620,8 +620,8 @@ def GetObjectInfo(cnt):
     #year, month, day, hour, minute, second, weekday, yearday = time.localtime()
     # create/modify report as current date (file constantly changes date)
     create=b"\0" # if we don't provide file time info
-    #create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d\0" % (year,month,day,hour,minute,second))
-    #create=ucs2_string(b"20250425T100120\0") # 2025-04-25 10:01:20
+    #create=ucs2_string(b"%04d%02d%02dT%02d%02d%02d" % (year,month,day,hour,minute,second))
+    #create=ucs2_string(b"20250425T100120") # 2025-04-25 10:01:20
     modify=create
     #data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
