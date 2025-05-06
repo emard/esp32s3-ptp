@@ -463,7 +463,7 @@ def GetDeviceInfo(cnt):
   print("GetDeviceInfo")
   print("<",end="")
   print_hex(cnt)
-  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  opcode,txid=struct.unpack("<HL",cnt[6:12])
   # opcode 0x1001
   # prepare response: device info standard 1.00 = 100
   header=struct.pack("<HLH", 100, 6, 100)
@@ -499,7 +499,7 @@ def GetStorageIDs(cnt):
   print("GetStorageIDs")
   print("<",end="")
   print_hex(cnt)
-  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  opcode,txid=struct.unpack("<HL",cnt[6:12])
   # opcode 0x1004
   # prepare response
   # actually a PTP array
@@ -540,7 +540,7 @@ def GetStorageInfo(cnt):
   print("GetStorageInfo")
   print("<",end="")
   print_hex(cnt)
-  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  opcode,txid,storageid=struct.unpack("<HLL",cnt[6:16])
   # opcode 0x1005
   # prepare response
   StorageType=STORAGE_FIXED_MEDIA
@@ -570,10 +570,9 @@ def GetObjectHandles(cnt):
   print("GetObjectHandles")
   print("<",end="")
   print_hex(cnt)
-  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  opcode,txid,_,_,dirhandle=struct.unpack("<HLLLL",cnt[6:24])
   # opcode 0x1007
   # unpack parameter
-  dirhandle,=struct.unpack("<L",cnt[20:24])
   if dirhandle==0xFFFFFFFF or dirhandle==0x10001: # root directory
     dirhandle=0
   ls(handle2path[dirhandle],1)
@@ -610,24 +609,22 @@ def GetObjectInfo(cnt):
   print("GetObjectInfo")
   print("<",end="")
   print_hex(cnt)
-  _,_,opcode,txid=unpack_ptp_hdr(cnt)
-  # opcode 0x1008
-  p1,=struct.unpack("<L",cnt[12:16])
-  print("p1=%08x" % p1)
+  opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
+  print("objh=%08x" % objh)
   StorageID=0x10001
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
   thumb_image_null=bytearray(26)
   assoc_seq_null=bytearray(10)
   length=0 # zero response currently
-  if p1 in handle2path:
-    fullpath=handle2path[p1]
+  if objh in handle2path:
+    fullpath=handle2path[objh]
     print(fullpath)
-    ParentObject=parent(p1) # 0 means this file is in root directory
-    (objname,objtype,_,objsize)=dir2handle[ParentObject][p1]
+    ParentObject=parent(objh) # 0 means this file is in root directory
+    (objname,objtype,_,objsize)=dir2handle[ParentObject][objh]
     #stat=os.stat(fullpath)
-    #objname=basename(p1)
-    #if handle2path[p1][-1]=="/":
+    #objname=basename(objh)
+    #if handle2path[objh][-1]=="/":
     if objtype==16384: # dir
       ObjectFormat=PTP_OFC_Directory
       ObjectSize=0
@@ -649,7 +646,7 @@ def GetObjectInfo(cnt):
     #data=header+name+b"\0\0\0"
     length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  if length==0: # p1 objecthandle not found, report just ok
+  if length==0: # objh objecthandle not found, report just ok
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
@@ -660,9 +657,8 @@ def GetObject(cnt):
   print("GetObject")
   print("<",end="")
   print_hex(cnt)
-  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
   # opcode 0x1009
-  objh,=struct.unpack("<L",cnt[12:16])
   length=0
   if objh in handle2path:
     fullpath=handle2path[objh]
@@ -689,9 +685,8 @@ def DeleteObject(cnt):
   print("DeleteObject")
   print("<",end="")
   print_hex(cnt)
-  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  opcode,txid,h=struct.unpack("<HLL",cnt[6:16])
   # opcode 0x100B
-  h,=struct.unpack("<L",cnt[12:16]) # handle to delete
   p=parent(h) # parent dir where to delete
   parent_path=handle2path[p]
   #print("deleting p=",p,"h=",h)
@@ -719,7 +714,7 @@ def SendObjectInfo(cnt):
   print("SendObjectInfo")
   print("<",end="")
   print_hex(cnt)
-  _,type,opcode,txid=unpack_ptp_hdr(cnt)
+  type,opcode,txid=struct.unpack("<HHL",cnt[4:12])
   # opcode= always 0x100C
   if type==PTP_USB_CONTAINER_COMMAND: # 1
     send_parent,=struct.unpack("<L",cnt[16:20])
@@ -791,7 +786,7 @@ def SendObject(cnt):
   #print("<len(cnt)=",len(cnt),"bytes packet")
   #print("<",end="")
   #print_hex(cnt)
-  _,type,opcode,txid=unpack_ptp_hdr(cnt)
+  type,opcode,txid=struct.unpack("<HHL",cnt[4:12])
   # opcode 0x100D
   if type==PTP_USB_CONTAINER_COMMAND: # 1
     #ecp5.prog_open()
@@ -826,7 +821,7 @@ def CloseSession(cnt):
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  _,_,opcode,txid=unpack_ptp_hdr(cnt)
+  opcode,txid=struct.unpack("<HL",cnt[6:12])
   # opcode 0x1007
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
