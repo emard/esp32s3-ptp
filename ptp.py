@@ -308,13 +308,8 @@ PTP_RC_InvalidEnumHandle=const(0x2021)
 PTP_RC_NoStreamEnabled=const(0x2022)
 PTP_RC_InvalidDataSet=const(0x2023)
 
-# return: length,type,code,trans_id
-# print("%08x %04x %04x %08x" % unpack_ptp_hdr(ptp_container))
-def unpack_ptp_hdr(cnt):
-  return struct.unpack("<LHHL",cnt)
-
 def print_ptp_header(cnt):
-  print("%08x %04x %04x %08x" % unpack_ptp_hdr(cnt),end="")
+  print("%08x %04x %04x %08x" % struct.unpack("<LHHL",cnt),end="")
 
 def print_ptp_params(cnt):
   for i in range((len(cnt)-12)//4):
@@ -360,19 +355,6 @@ def PTP_CNT_INIT_LEN_DATA(cnt,length,type,code,data):
   cnt[0:12]=struct.pack("<LHHL",length,type,code,txid)
   cnt[12:length]=data
   return length
-
-def Undefined(cnt):
-  print("undefined opcode")
-
-#def unpack_type(cnt):
-#  return struct.unpack("<H",cnt[4:6])[0]
-
-#def unpack_opcode(cnt):
-#  return struct.unpack("<H",cnt[6:8])[0]
-
-#def unpack_txid(cnt):
-#  return struct.unpack("<L",cnt[8:12])[0]
-
 
 # DeviceInfo pack/unpack
 #PTP_di_StandardVersion=const(0)
@@ -831,17 +813,14 @@ def CloseSession(cnt):
 # opcodes starting from 0x1000 - callback functions
 # more in libgphoto2 ptp.h and ptp.c
 ptp_opcode_cb = {
-  0x1000:Undefined,
   0x1001:GetDeviceInfo,
   0x1002:OpenSession,
   0x1003:CloseSession,
   0x1004:GetStorageIDs,
-  # 0x1006:GetNumObjects,
   0x1005:GetStorageInfo,
   0x1007:GetObjectHandles,
   0x1008:GetObjectInfo,
   0x1009:GetObject,
-  # 0x100A:GetThumb,
   0x100B:DeleteObject,
   0x100C:SendObjectInfo,
   0x100D:SendObject,
