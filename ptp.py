@@ -783,13 +783,14 @@ def irq_sendobject_complete(objecthandle):
   #ecp5.prog_close()
 
 # FIXME readinto first block instead of copy
-def SendObject(cnt):
+def SendObject(cnt): # 0x100D
   global txid,opcode,send_length,remaining_send_length,fd
   #print("<len(cnt)=",len(cnt),"bytes packet")
   #print("<",end="")
   #print_hex(cnt)
-  type,opcode,txid=struct.unpack("<HHL",cnt[4:12])
-  # opcode 0x100D
+  type=hdr.type
+  opcode=hdr.code
+  txid=hdr.txid
   if type==PTP_USB_CONTAINER_COMMAND: # 1
     #ecp5.prog_open()
     fd=open(send_fullpath,"wb")
@@ -818,12 +819,14 @@ def SendObject(cnt):
       # prepare full buffer to read again from host
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
 
-def CloseSession(cnt):
+def CloseSession(cnt): # 0x1007
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  opcode,txid=struct.unpack("<HL",cnt[6:12])
-  # opcode 0x1007
+  #opcode,txid=struct.unpack("<HL",cnt[6:12])
+  type=hdr.type
+  opcode=hdr.code
+  txid=hdr.txid
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
   print_hex(i0_usbd_buf[:length])
