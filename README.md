@@ -53,3 +53,21 @@ linux skips storage name and displays root folder.
 # Apple
 
 Not yet tested
+
+# MTP mode
+
+If USB interface is named "MTP" then this device
+will be treated as MTP instead of PTP. To try it
+edit source "ptp.py".
+
+    INTERFACE0=b"MTP"
+
+"ptp.py" handles PTP and MTP the same and
+on windows 10 it works the same.
+
+on linux MTP is handled by libmtp while PTP is
+handled by libgphoto2, so MTP browsing, write,
+delete works but reading files doesn't work.
+Attept to read file from gnome reports
+"Errno 95 Operation Not Supported".
+
