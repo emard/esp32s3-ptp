@@ -61,6 +61,7 @@ VERSION=b"3.1.8"
 STORAGE=b"iStorage"
 VOLUME=b"iVolume"
 
+STORID=const(0x10001)
 # PTP
 # USB Still Image Capture Class defines
 USB_CLASS_IMAGE=const(6)
@@ -166,6 +167,10 @@ USB_REQ_TYPE_VENDOR = 0x40
 USB_DIR_OUT = 0x00
 USB_DIR_IN = 0x80
 
+# VFS micrpython types
+VFS_DIR=const(0x4000)
+VFS_FILE=const(0x8000)
+
 # PTP uctype struct
 # container header
 CNT_HDR_DESC = {
@@ -258,7 +263,7 @@ def ls(path,recurse):
     else:
       current_handle=next_handle
       next_handle+=1
-    if obj[1]==16384: # obj[1]==DIR
+    if obj[1]==VFS_DIR: # obj[1]==DIR
       print(path,"DIR:",obj)
       if recurse>0:
         newhandle=ls(fullpath,recurse-1)
@@ -503,7 +508,7 @@ def GetStorageIDs(cnt): # 0x1004
   # rest are elements of 32-bits
   # each element can be any unique integer
   # actually a storage drive id
-  data=uint32_array([0x10001])
+  data=uint32_array([STORID])
   length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
   print(">",end="")
@@ -570,7 +575,7 @@ def GetObjectHandles(cnt): # 0x1007
   txid=hdr.txid
   dirhandle=hdr.p3
   # unpack parameter
-  if dirhandle==0xFFFFFFFF or dirhandle==0x10001: # root directory
+  if dirhandle==0xFFFFFFFF or dirhandle==STORID: # root directory
     dirhandle=0
   ls(handle2path[dirhandle],1)
   data=uint32_array(objects(dirhandle))
@@ -610,7 +615,7 @@ def GetObjectInfo(cnt): # 0x1008
   txid=hdr.txid
   objh=hdr.p1
   print("objh=%08x" % objh)
-  StorageID=0x10001
+  StorageID=STORID
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
   thumb_image_null=bytearray(26)
@@ -624,10 +629,10 @@ def GetObjectInfo(cnt): # 0x1008
     #stat=os.stat(fullpath)
     #objname=basename(objh)
     #if handle2path[objh][-1]=="/":
-    if objtype==16384: # dir
+    if objtype==VFS_DIR: # dir
       ObjectFormat=PTP_OFC_Directory
       ObjectSize=0
-    else: # stat[0]=32768 # file
+    else: # stat[0]==VFS_FILE # file
       ObjectFormat=PTP_OFC_Text
       ObjectSize=objsize
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
@@ -702,16 +707,18 @@ def DeleteObject(cnt): # 0x100B
   del(dir2handle[p][h])
   del(handle2path[h])
   #print("parent path",parent_path)
-  if objtype==16384: # dir
+  if objtype==VFS_DIR: # dir
     del(path2handle[parent_path+objname+"/"])
     del(path2handle[parent_path][objname+"/"])
-  else: # objtype==32768: # file
+  else: # objtype==VFS_FILE: # file
     del(path2handle[parent_path][objname])
   print("deleted",fullpath)
-  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+  hdr.len=12
+  hdr.type=PTP_USB_CONTAINER_RESPONSE
+  hdr.code=PTP_RC_OK
   print(">",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+  print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 def SendObjectInfo(cnt): # 0x100C
   global txid,opcode,send_length,send_name,next_handle,current_send_handle
@@ -753,7 +760,7 @@ def SendObjectInfo(cnt): # 0x100C
       current_send_handle=next_handle
       str_send_name_p2h=str_send_name
       send_fullpath_h2p=send_fullpath
-      if send_objtype==0x3001: # dir
+      if send_objtype==PTP_OFC_Directory: # dir
         str_send_name_p2h+="/"
         send_fullpath_h2p+="/"
         path2handle[send_fullpath_h2p]={0:current_send_handle}
@@ -761,19 +768,25 @@ def SendObjectInfo(cnt): # 0x100C
         os.mkdir(send_fullpath)
       path2handle[send_parent_path][str_send_name_p2h]=current_send_handle
       handle2path[current_send_handle]=send_fullpath_h2p
-    vfs_objtype=32768 # default is file
-    if send_objtype==0x3001:
-      vfs_objtype=16384 # directory
+    vfs_objtype=VFS_FILE # default is file
+    if send_objtype==PTP_OFC_Directory:
+      vfs_objtype=VFS_DIR # directory
     dir2handle[send_parent][current_send_handle]=(str_send_name,vfs_objtype,0,send_length)
     print("current send handle",current_send_handle)
     # send OK response to host
     # here we must send extended "OK" response
     # with 3 addional 32-bit fields:
     # storage_id, parend_id, object_id
-    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,0x10001,send_parent,current_send_handle)
+    #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,STORID,send_parent,current_send_handle)
+    hdr.len=24
+    hdr.type=PTP_USB_CONTAINER_RESPONSE
+    hdr.code=PTP_RC_OK
+    hdr.p1=STORID
+    hdr.p2=send_parent
+    hdr.p3=current_send_handle
     print(">",end="")
-    print_hex(i0_usbd_buf[:length])
-    usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+    print_hex(i0_usbd_buf[:hdr.len])
+    usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 def irq_sendobject_complete(objecthandle):
   global fd
