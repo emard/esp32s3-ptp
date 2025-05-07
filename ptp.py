@@ -413,9 +413,13 @@ send_irq_response=bytearray(32) # interrupt response to send
 
 # after one IN submit another with response OK
 def respond_ok():
-  length_response[0] = PTP_CNT_INIT(send_response,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-  # length is set now and reset to 0 after
-  # send is scheduled
+  send_response[0:12]=struct.pack("<LHHL",12,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,txid)
+  length_response[0]=12
+  # length_response[0] is set now and reset to 0 after IN is submitted
+
+def respond_ok_tx(id):
+  send_response[0:12]=struct.pack("<LHHL",12,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,id)
+  length_response[0]=12
 
 def OpenSession(cnt):
   global txid,sesid,opcode
@@ -696,7 +700,7 @@ def GetObject(cnt): # 0x1009
     if remain_getobj_len<=0:
       remain_getobj_len=0
       fd.close()
-      respond_ok()
+      respond_ok_tx(txid)
     #print("size", filesize, "remain getobj", remain_getobj_len)
   if length==0:
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
@@ -969,7 +973,7 @@ def ep1_in_done(result, xferred_bytes):
       if remain_getobj_len<=0:
         remain_getobj_len=0
         fd.close()
-        respond_ok() # after this send ok IN response
+        respond_ok_tx(txid) # after this send ok IN response
       #print(">",end="")
       #print_hexdump(i0_usbd_buf[:packet_len])
       usbd.submit_xfer(I0_EP1_IN, i0_usbd_buf[:packet_len])
