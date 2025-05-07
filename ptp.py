@@ -489,11 +489,14 @@ def GetDeviceInfo(cnt): # 0x1001
   deviceversion=ucs2_string(VERSION)
   serialnumber=ucs2_string(SERIAL)
   data=header+extension+functional_mode+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
-  length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
+  #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+  hdr.len=12+len(data)
+  hdr.type=PTP_USB_CONTAINER_DATA
+  i0_usbd_buf[12:hdr.len]=data
   print(">",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+  print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 def GetStorageIDs(cnt): # 0x1004
   global txid,opcode
