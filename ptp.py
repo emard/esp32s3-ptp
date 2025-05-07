@@ -442,7 +442,6 @@ PTP_OFC_TIFF=const(0x380D)
 
 def GetDeviceInfo(cnt):
   global txid,opcode
-  print("GetDeviceInfo")
   print("<",end="")
   print_hex(cnt)
   opcode,txid=struct.unpack("<HL",cnt[6:12])
@@ -478,7 +477,6 @@ def GetDeviceInfo(cnt):
 
 def GetStorageIDs(cnt):
   global txid,opcode
-  print("GetStorageIDs")
   print("<",end="")
   print_hex(cnt)
   opcode,txid=struct.unpack("<HL",cnt[6:12])
@@ -519,7 +517,6 @@ STORAGE_READ_ONLY_WITH_DELETE=const(2)
 
 def GetStorageInfo(cnt):
   global txid,opcode
-  print("GetStorageInfo")
   print("<",end="")
   print_hex(cnt)
   opcode,txid,storageid=struct.unpack("<HLL",cnt[6:16])
@@ -549,7 +546,6 @@ def GetStorageInfo(cnt):
 # returns array of handles
 def GetObjectHandles(cnt):
   global txid,opcode
-  print("GetObjectHandles")
   print("<",end="")
   print_hex(cnt)
   opcode,txid,_,_,dirhandle=struct.unpack("<HLLLL",cnt[6:24])
@@ -588,7 +584,6 @@ def GetObjectHandles(cnt):
 
 def GetObjectInfo(cnt):
   global txid,opcode
-  print("GetObjectInfo")
   print("<",end="")
   print_hex(cnt)
   opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
@@ -636,7 +631,6 @@ def GetObjectInfo(cnt):
 
 def GetObject(cnt):
   global txid,opcode,remain_getobj_len,fd
-  print("GetObject")
   print("<",end="")
   print_hex(cnt)
   opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
@@ -664,7 +658,6 @@ def GetObject(cnt):
 
 def DeleteObject(cnt):
   global txid,opcode
-  print("DeleteObject")
   print("<",end="")
   print_hex(cnt)
   opcode,txid,h=struct.unpack("<HLL",cnt[6:16])
@@ -693,7 +686,6 @@ def DeleteObject(cnt):
 def SendObjectInfo(cnt):
   global txid,opcode,send_length,send_name,next_handle,current_send_handle
   global send_parent,send_parent_path,send_fullpath
-  print("SendObjectInfo")
   print("<",end="")
   print_hex(cnt)
   type,opcode,txid=struct.unpack("<HHL",cnt[4:12])
@@ -764,7 +756,6 @@ def irq_sendobject_complete(objecthandle):
 # FIXME readinto first block instead of copy
 def SendObject(cnt):
   global txid,opcode,send_length,remaining_send_length,fd
-  print("SendObject")
   #print("<len(cnt)=",len(cnt),"bytes packet")
   #print("<",end="")
   #print_hex(cnt)
@@ -799,7 +790,6 @@ def SendObject(cnt):
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
 
 def CloseSession(cnt):
-  print("CloseSession")
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
@@ -893,6 +883,7 @@ def ep1_out_done(result, xferred_bytes):
       irq_sendobject_complete(current_send_handle)
   else:
     code,=struct.unpack("<H",i0_usbd_buf[6:8])
+    print("0x%04x %s" % (code,ptp_opcode_cb[code].__name__))
     ptp_opcode_cb[code](i0_usbd_buf[:xferred_bytes])
 
 def ep1_in_done(result, xferred_bytes):
