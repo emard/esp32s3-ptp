@@ -512,11 +512,14 @@ def GetStorageIDs(cnt): # 0x1004
   # each element can be any unique integer
   # actually a storage drive id
   data=uint32_array([STORID])
-  length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+  #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
+  hdr.len=12+len(data)
+  hdr.type=PTP_USB_CONTAINER_DATA
+  i0_usbd_buf[12:hdr.len]=data
   print(">",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+  print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # PTP_si_StorageType               0
 # PTP_si_FilesystemType            2
