@@ -667,9 +667,11 @@ def GetObject(cnt): # 0x1009
     filesize=fd.seek(0,2)
     fd.seek(0)
     # file data after 12-byte header
-    length=PTP_CNT_INIT_LEN(i0_usbd_buf,12+filesize,PTP_USB_CONTAINER_DATA,opcode)
+    #length=PTP_CNT_INIT_LEN(i0_usbd_buf,12+filesize,PTP_USB_CONTAINER_DATA,opcode)
+    hdr.len=12+filesize
+    hdr.type=PTP_USB_CONTAINER_DATA
     len1st=fd.readinto(memoryview(i0_usbd_buf)[12:])
-    length+=len1st
+    length=12+len1st
     remain_getobj_len=filesize-len1st
     if remain_getobj_len<=0:
       remain_getobj_len=0
