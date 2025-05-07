@@ -495,20 +495,7 @@ def GetDeviceInfo(cnt): # 0x1001
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 def GetStorageIDs(cnt): # 0x1004
-  global txid,opcode
-  print("<",end="")
-  print_hex(cnt)
-  opcode=hdr.code
-  txid=hdr.txid
-  # opcode 0x1004
-  # prepare response
-  # actually a PTP array
-  # first 32-bit is length (number of elements, actually storage drives)
-  # rest are elements of 32-bits
-  # each element can be any unique integer
-  # actually a storage drive id
   data=uint32_array([STORID])
-  #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
   hdr.len=12+len(data)
   hdr.type=PTP_USB_CONTAINER_DATA
@@ -539,11 +526,6 @@ STORAGE_READ_ONLY_WITHOUT_DELETE=const(1)
 STORAGE_READ_ONLY_WITH_DELETE=const(2)
 
 def GetStorageInfo(cnt): # 0x1005
-  global txid,opcode
-  print("<",end="")
-  print_hex(cnt)
-  opcode=hdr.code
-  txid=hdr.txid
   storageid=hdr.p1
   # prepare response
   StorageType=STORAGE_FIXED_MEDIA
@@ -560,7 +542,6 @@ def GetStorageInfo(cnt): # 0x1005
   VolumeLabel=ucs2_string(VOLUME)
   hdr1=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
   data=hdr1+StorageDescription+VolumeLabel
-  #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
   hdr.len=12+len(data)
   hdr.type=PTP_USB_CONTAINER_DATA
