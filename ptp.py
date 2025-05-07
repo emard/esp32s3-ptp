@@ -790,10 +790,14 @@ def SendObjectInfo(cnt): # 0x100C
 
 def irq_sendobject_complete(objecthandle):
   global fd
-  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,objecthandle)
+  hdr.len=16
+  hdr.type=PTP_USB_CONTAINER_EVENT
+  hdr.code=PTP_EC_ObjectInfoChanged
+  hdr.p1=objecthandle
+  #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,objecthandle)
   print("irq>",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:length])
+  print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:hdr.len])
   fd.close()
   #ecp5.prog_close()
 
