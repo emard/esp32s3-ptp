@@ -835,17 +835,15 @@ def SendObject(cnt): # 0x100D
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
 
 def CloseSession(cnt): # 0x1007
-  global txid,opcode
+  #global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  #opcode,txid=struct.unpack("<HL",cnt[6:12])
-  type=hdr.type
-  opcode=hdr.code
-  txid=hdr.txid
-  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+  hdr.len=12
+  hdr.type=PTP_USB_CONTAINER_RESPONSE
+  hdr.code=PTP_RC_OK
   print(">",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+  print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # opcodes starting from 0x1000 - callback functions
 # more in libgphoto2 ptp.h and ptp.c
