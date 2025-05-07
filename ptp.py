@@ -564,11 +564,14 @@ def GetStorageInfo(cnt): # 0x1005
   VolumeLabel=ucs2_string(VOLUME)
   hdr1=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
   data=hdr1+StorageDescription+VolumeLabel
-  length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+  #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
+  hdr.len=12+len(data)
+  hdr.type=PTP_USB_CONTAINER_DATA
+  i0_usbd_buf[12:hdr.len]=data
   print(">",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+  print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # for given handle id of a directory
 # returns array of handles
@@ -588,11 +591,14 @@ def GetObjectHandles(cnt): # 0x1007
   # FIXME when directory has many entries > 256 data
   # would not fit in one 1024 byte block
   # block continuation neede
-  length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+  #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
+  hdr.len=12+len(data)
+  hdr.type=PTP_USB_CONTAINER_DATA
+  i0_usbd_buf[12:hdr.len]=data
   print(">",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+  print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # PTP_oi_StorageID		 0
 # PTP_oi_ObjectFormat		 4
@@ -654,13 +660,16 @@ def GetObjectInfo(cnt): # 0x1008
     #data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     #data=header+name+b"\0\0\0"
-    length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
+    #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
-  if length==0: # objh objecthandle not found, report just ok
-    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+    hdr.len=12+len(data)
+    hdr.type=PTP_USB_CONTAINER_DATA
+    i0_usbd_buf[12:hdr.len]=data
+  #if length==0: # objh objecthandle not found, report just ok
+  #  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   print(">",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+  print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 def GetObject(cnt): # 0x1009
   global txid,opcode,remain_getobj_len,fd
