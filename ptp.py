@@ -411,6 +411,13 @@ send_response=bytearray(32) # response to send
 length_irq_response=bytearray(1) # length to send response once
 send_irq_response=bytearray(32) # interrupt response to send
 
+# for immediate response IN "ok"
+def hdr_ok():
+  hdr.len=12
+  hdr.type=PTP_USB_CONTAINER_RESPONSE
+  hdr.code=PTP_RC_OK
+  return 12
+
 # after one IN submit another with response OK
 def respond_ok():
   send_response[0:12]=struct.pack("<LHHL",12,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,hdr.txid)
@@ -422,19 +429,21 @@ def respond_ok_tx(id):
   length_response[0]=12
 
 def OpenSession(cnt):
-  global txid,sesid,opcode
+  global sesid
+  #global txid,opcode
   #print("OpenSession")
   #print("<",end="")
   #print_hex(cnt)
   #txid,sesid=struct.unpack("<LL",cnt[8:16])
-  txid=hdr.txid
+  #txid=hdr.txid
   sesid=hdr.p1
   #print("txid=",txid,"sesid=",sesid)
   # prepare response 0c 00 00 00  03 00  01 20  00 00 00 00
-  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
+  hdr_ok()
+  #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   #print(">",end="")
   #print_hex(i0_usbd_buf)
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # more codes in
 # git clone https://github.com/gphoto/libgphoto2
@@ -494,7 +503,6 @@ def GetDeviceInfo(cnt): # 0x1001
   serialnumber=ucs2_string(SERIAL)
   data=header+extension+functional_mode+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
   respond_ok()
-  #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   hdr.len=12+len(data)
   hdr.type=PTP_USB_CONTAINER_DATA
   i0_usbd_buf[12:hdr.len]=data
