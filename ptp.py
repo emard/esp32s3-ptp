@@ -351,10 +351,9 @@ def PTP_CNT_INIT_DATA(cnt,type,code,data):
   cnt[12:length]=data
   return length
 
-def PTP_CNT_INIT_LEN_DATA(cnt,length,type,code,data):
+def PTP_CNT_INIT_LEN(cnt,length,type,code):
   cnt[0:12]=struct.pack("<LHHL",length,type,code,txid)
-  cnt[12:length]=data
-  return length
+  return 12
 
 # DeviceInfo pack/unpack
 #PTP_di_StandardVersion=const(0)
@@ -642,14 +641,16 @@ def GetObject(cnt):
     fd=open(fullpath,"rb")
     filesize=fd.seek(0,2)
     fd.seek(0)
-    data=fd.read(len(i0_usbd_buf)-12)
-    remain_getobj_len=filesize-len(data)
+    # file data after 12-byte header
+    length=PTP_CNT_INIT_LEN(i0_usbd_buf,12+filesize,PTP_USB_CONTAINER_DATA,opcode)
+    len1st=fd.readinto(memoryview(i0_usbd_buf)[12:])
+    length+=len1st
+    remain_getobj_len=filesize-len1st
     if remain_getobj_len<=0:
       remain_getobj_len=0
       fd.close()
       respond_ok()
     #print("size", filesize, "remain getobj", remain_getobj_len)
-    length=PTP_CNT_INIT_LEN_DATA(i0_usbd_buf,12+filesize,PTP_USB_CONTAINER_DATA,opcode,data)
   if length==0:
     length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
   #print(">",end="")
