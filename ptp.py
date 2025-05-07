@@ -454,15 +454,17 @@ def GetDeviceInfo(cnt):
   operations=uint16_array(ptp_opcode_cb) # short of previous line
   events=uint16_array((PTP_EC_ObjectInfoChanged,))
   deviceprops=uint16_array((PTP_DPC_DateTime,))
-  captureformats=uint16_array((PTP_OFC_EXIF_JPEG,))
+  captureformats=uint16_array(())
+  #captureformats=uint16_array((PTP_OFC_EXIF_JPEG,))
   imageformats=uint16_array((
   PTP_OFC_Undefined,
   PTP_OFC_Directory,
   PTP_OFC_Text,
-  PTP_OFC_HTML,
-  PTP_OFC_EXIF_JPEG,
-  PTP_OFC_WAV,
-  PTP_OFC_Defined,))
+  #PTP_OFC_HTML,
+  #PTP_OFC_EXIF_JPEG,
+  #PTP_OFC_WAV,
+  #PTP_OFC_Defined,
+  ))
   manufacturer=ucs2_string(MANUFACTURER)
   model=ucs2_string(PRODUCT)
   deviceversion=ucs2_string(VERSION)
