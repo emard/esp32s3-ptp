@@ -191,7 +191,6 @@ status = bytearray([0,0,0,0,0,0])
 # global PTP session ID, Transaction ID, opcode
 sesid=0
 txid=0
-opcode=0
 
 # global sendobject (receive file) length
 send_parent=0 # to which directory we will send object
@@ -264,7 +263,7 @@ def ls(path,recurse):
       current_handle=next_handle
       next_handle+=1
     if obj[1]==VFS_DIR: # obj[1]==DIR
-      print(path,"DIR:",obj)
+      #print(path,"DIR:",obj)
       if recurse>0:
         newhandle=ls(fullpath,recurse-1)
         dir2handle[current_dir][newhandle]=obj
@@ -273,7 +272,7 @@ def ls(path,recurse):
           path2handle[path][objname_]=newhandle
     else: # obj[1]==FILE
       dir2handle[current_dir][current_handle]=obj
-      print(path,"FILE:",obj)
+      #print(path,"FILE:",obj)
       if not objname in path2handle[path]:
         path2handle[path][objname]=current_handle
         handle2path[current_handle]=fullpath
@@ -352,25 +351,6 @@ def print_ucs2_string(s):
   for i in range(s[0]):
     print("%c" % s[1+i+i],end="")
   print("")
-
-# params 0..5
-def PTP_CNT_INIT(cnt,type,code,*params):
-  length=12+4*len(params)
-  cnt[0:12]=struct.pack("<LHHL",length,type,code,txid)
-  for i in range(len(params)):
-    cnt[12+i*4:16+i*4]=struct.pack("<L",params[i])
-  return length
-
-# data payload
-def PTP_CNT_INIT_DATA(cnt,type,code,data):
-  length=12+len(data)
-  cnt[0:12]=struct.pack("<LHHL",length,type,code,txid)
-  cnt[12:length]=data
-  return length
-
-def PTP_CNT_INIT_LEN(cnt,length,type,code):
-  cnt[0:12]=struct.pack("<LHHL",length,type,code,txid)
-  return 12
 
 # DeviceInfo pack/unpack
 #PTP_di_StandardVersion=const(0)
@@ -490,8 +470,8 @@ def GetDeviceInfo(cnt): # 0x1001
   hdr.len=12+len(data)
   hdr.type=PTP_USB_CONTAINER_DATA
   i0_usbd_buf[12:hdr.len]=data
-  print(">",end="")
-  print_hex(i0_usbd_buf[:hdr.len])
+  #print(">",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 def GetStorageIDs(cnt): # 0x1004
@@ -500,8 +480,8 @@ def GetStorageIDs(cnt): # 0x1004
   hdr.len=12+len(data)
   hdr.type=PTP_USB_CONTAINER_DATA
   i0_usbd_buf[12:hdr.len]=data
-  print(">",end="")
-  print_hex(i0_usbd_buf[:hdr.len])
+  #print(">",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # PTP_si_StorageType               0
@@ -527,7 +507,6 @@ STORAGE_READ_ONLY_WITH_DELETE=const(2)
 
 def GetStorageInfo(cnt): # 0x1005
   storageid=hdr.p1
-  # prepare response
   StorageType=STORAGE_FIXED_MEDIA
   FilesystemType=2
   AccessCapability=STORAGE_READ_WRITE
@@ -546,21 +525,14 @@ def GetStorageInfo(cnt): # 0x1005
   hdr.len=12+len(data)
   hdr.type=PTP_USB_CONTAINER_DATA
   i0_usbd_buf[12:hdr.len]=data
-  print(">",end="")
-  print_hex(i0_usbd_buf[:hdr.len])
+  #print(">",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # for given handle id of a directory
 # returns array of handles
 def GetObjectHandles(cnt): # 0x1007
-  global txid,opcode
-  print("<",end="")
-  print_hex(cnt)
-  #opcode,txid,_,_,dirhandle=struct.unpack("<HLLLL",cnt[6:24])
-  opcode=hdr.code
-  txid=hdr.txid
   dirhandle=hdr.p3
-  # unpack parameter
   if dirhandle==0xFFFFFFFF or dirhandle==STORID: # root directory
     dirhandle=0
   ls(handle2path[dirhandle],1)
@@ -568,13 +540,12 @@ def GetObjectHandles(cnt): # 0x1007
   # FIXME when directory has many entries > 256 data
   # would not fit in one 1024 byte block
   # block continuation neede
-  #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
   hdr.len=12+len(data)
   hdr.type=PTP_USB_CONTAINER_DATA
   i0_usbd_buf[12:hdr.len]=data
-  print(">",end="")
-  print_hex(i0_usbd_buf[:hdr.len])
+  #print(">",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # PTP_oi_StorageID		 0
@@ -596,20 +567,13 @@ def GetObjectHandles(cnt): # 0x1007
 # PTP_oi_Filename               53
 
 def GetObjectInfo(cnt): # 0x1008
-  global txid,opcode
-  print("<",end="")
-  print_hex(cnt)
-  #opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
-  opcode=hdr.code
-  txid=hdr.txid
   objh=hdr.p1
-  print("objh=%08x" % objh)
+  #print("objh=%08x" % objh)
   StorageID=STORID
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
   thumb_image_null=bytearray(26)
   assoc_seq_null=bytearray(10)
-  length=0 # zero response currently
   if objh in handle2path:
     fullpath=handle2path[objh]
     print(fullpath)
@@ -637,34 +601,24 @@ def GetObjectInfo(cnt): # 0x1008
     #data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     #data=header+name+b"\0\0\0"
-    #length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
     respond_ok()
     hdr.len=12+len(data)
     hdr.type=PTP_USB_CONTAINER_DATA
     i0_usbd_buf[12:hdr.len]=data
-  #if length==0: # objh objecthandle not found, report just ok
-  #  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-  print(">",end="")
-  print_hex(i0_usbd_buf[:hdr.len])
+  #print(">",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 def GetObject(cnt): # 0x1009
-  global txid,opcode,remain_getobj_len,fd
-  print("<",end="")
-  print_hex(cnt)
-  #opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
-  opcode=hdr.code
+  global txid,remain_getobj_len,fd
   txid=hdr.txid
-  objh=hdr.p1
-  length=0
-  if objh in handle2path:
-    fullpath=handle2path[objh]
+  if hdr.p1 in handle2path:
+    fullpath=handle2path[hdr.p1]
     print(fullpath)
     fd=open(fullpath,"rb")
     filesize=fd.seek(0,2)
     fd.seek(0)
     # file data after 12-byte header
-    #length=PTP_CNT_INIT_LEN(i0_usbd_buf,12+filesize,PTP_USB_CONTAINER_DATA,opcode)
     hdr.len=12+filesize
     hdr.type=PTP_USB_CONTAINER_DATA
     len1st=fd.readinto(memoryview(i0_usbd_buf)[12:])
@@ -674,20 +628,9 @@ def GetObject(cnt): # 0x1009
       remain_getobj_len=0
       fd.close()
       respond_ok_tx(txid)
-    #print("size", filesize, "remain getobj", remain_getobj_len)
-  if length==0:
-    length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-  #print(">",end="")
-  #print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
 def DeleteObject(cnt): # 0x100B
-  global txid,opcode
-  print("<",end="")
-  print_hex(cnt)
-  #opcode,txid,h=struct.unpack("<HLL",cnt[6:16])
-  opcode=hdr.code
-  txid=hdr.txid
   h=hdr.p1
   p=parent(h) # parent dir where to delete
   parent_path=handle2path[p]
@@ -705,43 +648,37 @@ def DeleteObject(cnt): # 0x100B
   else: # objtype==VFS_FILE: # file
     del(path2handle[parent_path][objname])
   print("deleted",fullpath)
-  hdr.len=12
-  hdr.type=PTP_USB_CONTAINER_RESPONSE
-  hdr.code=PTP_RC_OK
-  print(">",end="")
-  print_hex(i0_usbd_buf[:hdr.len])
+  hdr_ok()
+  #print(">",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 def SendObjectInfo(cnt): # 0x100C
-  global txid,opcode,send_length,send_name,next_handle,current_send_handle
+  global txid,send_length,send_name,next_handle,current_send_handle
   global send_parent,send_parent_path,send_fullpath
-  print("<",end="")
-  print_hex(cnt)
-  type=hdr.type
-  opcode=hdr.code
   txid=hdr.txid
-  if type==PTP_USB_CONTAINER_COMMAND: # 1
+  if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
     send_parent,=struct.unpack("<L",cnt[16:20])
     if send_parent==0xffffffff:
       send_parent=0
-    print("send_parent: 0x%x" % send_parent)
+    #print("send_parent: 0x%x" % send_parent)
     send_parent_path=handle2path[send_parent]
-    print("send dir path",send_parent_path)
+    #print("send dir path",send_parent_path)
     # prepare full buffer to read from host again
     # host will send another OUT
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
-  if type==PTP_USB_CONTAINER_DATA: # 2
+  if hdr.type==PTP_USB_CONTAINER_DATA: # 2
     # we just have received data from host
     # host sends in advance file length to be sent
     send_objtype,=struct.unpack("<H",cnt[16:18])
-    print("send objtype 0x%04x" % send_objtype)
+    #print("send objtype 0x%04x" % send_objtype)
     send_name=get_ucs2_string(cnt[64:])
     str_send_name=decode_ucs2_string(send_name)[:-1].decode()
-    print("send name:", str_send_name)
+    #print("send name:", str_send_name)
     send_length,=struct.unpack("<L", cnt[20:24])
-    print("send length:", send_length)
+    #print("send length:", send_length)
     send_fullpath=handle2path[send_parent]+str_send_name
-    print("fullpath",send_fullpath)
+    #print("fullpath",send_fullpath)
     if str_send_name in path2handle[send_parent_path]:
       current_send_handle=path2handle[send_parent_path][str_send_name]
       # TODO update length after send has finished
@@ -764,20 +701,18 @@ def SendObjectInfo(cnt): # 0x100C
     if send_objtype==PTP_OFC_Directory:
       vfs_objtype=VFS_DIR # directory
     dir2handle[send_parent][current_send_handle]=(str_send_name,vfs_objtype,0,send_length)
-    print("current send handle",current_send_handle)
+    #print("current send handle",current_send_handle)
     # send OK response to host
-    # here we must send extended "OK" response
+    hdr_ok()
+    # extended "OK" response
     # with 3 addional 32-bit fields:
     # storage_id, parend_id, object_id
-    #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,STORID,send_parent,current_send_handle)
     hdr.len=24
-    hdr.type=PTP_USB_CONTAINER_RESPONSE
-    hdr.code=PTP_RC_OK
     hdr.p1=STORID
     hdr.p2=send_parent
     hdr.p3=current_send_handle
-    print(">",end="")
-    print_hex(i0_usbd_buf[:hdr.len])
+    #print(">",end="")
+    #print_hex(i0_usbd_buf[:hdr.len])
     usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 def irq_sendobject_complete(objecthandle):
@@ -786,32 +721,25 @@ def irq_sendobject_complete(objecthandle):
   hdr.type=PTP_USB_CONTAINER_EVENT
   hdr.code=PTP_EC_ObjectInfoChanged
   hdr.p1=objecthandle
-  #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_EVENT,PTP_EC_ObjectInfoChanged,objecthandle)
-  print("irq>",end="")
-  print_hex(i0_usbd_buf[:hdr.len])
+  #print("irq>",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:hdr.len])
   fd.close()
   #ecp5.prog_close()
 
 # FIXME readinto first block instead of copy
 def SendObject(cnt): # 0x100D
-  global txid,opcode,send_length,remaining_send_length,fd
-  #print("<len(cnt)=",len(cnt),"bytes packet")
-  #print("<",end="")
-  #print_hex(cnt)
-  type=hdr.type
-  opcode=hdr.code
+  global txid,send_length,remaining_send_length,fd
   txid=hdr.txid
-  if type==PTP_USB_CONTAINER_COMMAND: # 1
+  if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
     #ecp5.prog_open()
     fd=open(send_fullpath,"wb")
     # host will send another OUT command
     # prepare full buffer to read again from host
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
-  if type==PTP_USB_CONTAINER_DATA: # 2
+  if hdr.type==PTP_USB_CONTAINER_DATA: # 2
     # host has just sent data
-    # incoming payload is 12 bytes after PTP header
-    # subtract send_length by incoming payload
+    # 12 bytes header, rest is payload
     if send_length>0:
       #ecp5.hwspi.write(cnt[12:])
       fd.write(cnt[12:])
@@ -831,14 +759,9 @@ def SendObject(cnt): # 0x100D
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
 
 def CloseSession(cnt): # 0x1007
-  #global txid,opcode
-  print("<",end="")
-  print_hex(cnt)
-  hdr.len=12
-  hdr.type=PTP_USB_CONTAINER_RESPONSE
-  hdr.code=PTP_RC_OK
-  print(">",end="")
-  print_hex(i0_usbd_buf[:hdr.len])
+  hdr_ok()
+  #print(">",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # opcodes starting from 0x1000 - callback functions
@@ -926,16 +849,17 @@ def ep1_out_done(result, xferred_bytes):
       # signal to host we have received entire file
       irq_sendobject_complete(current_send_handle)
   else:
-    #code,=struct.unpack("<H",i0_usbd_buf[6:8])
     print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
+    #print("<",end="")
+    #print_hex(i0_usbd_buf[:xferred_bytes])
     ptp_opcode_cb[hdr.code](i0_usbd_buf[:xferred_bytes])
 
 def ep1_in_done(result, xferred_bytes):
   global remain_getobj_len,fd
   # prepare full buffer to read for next host OUT command
   if length_response[0]:
-    print(">",end="")
-    print_hex(send_response[:length_response[0]])
+    #print(">",end="")
+    #print_hex(send_response[:length_response[0]])
     usbd.submit_xfer(I0_EP1_IN, send_response[:length_response[0]])
     length_response[0]=0 # consumed, prevent recurring
   else:
@@ -955,10 +879,11 @@ def ep1_in_done(result, xferred_bytes):
 
 def ep2_in_done(result, xferred_bytes):
   # after IRQ data sent reply OK to host
-  length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-  print("after_irq>",end="")
-  print_hex(i0_usbd_buf[:length])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
+  hdr_ok()
+  hdr.txid=txid
+  #print("after_irq>",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 ep_addr_cb = {
   I0_EP1_OUT:ep1_out_done,
