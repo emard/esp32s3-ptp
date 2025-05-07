@@ -54,8 +54,8 @@ CONFIGURATION=b"iConfiguration"
 # use MTP protocol.
 # Any other name will make it use PTP protocol.
 # currently MTP file read doesn't work in linux
-#INTERFACE0=b"MTP"
-INTERFACE0=b"iInterface0"
+#INTERFACE0=b"MTP" # libmtp
+INTERFACE0=b"iInterface0" # libgphoto2
 INTERFACE1=b"iInterface1"
 VERSION=b"3.1.8"
 STORAGE=b"iStorage"
@@ -446,7 +446,7 @@ def GetDeviceInfo(cnt):
   opcode,txid=struct.unpack("<HL",cnt[6:12])
   # opcode 0x1001
   # prepare response: device info standard 1.00 = 100
-  header=struct.pack("<HLH", 100, 6, 100)
+  header=struct.pack("<HLH",100,0,100)
   extension=b"\0"
   #extension=ucs2_string(b"microsoft.com: 1.0")
   functional_mode=struct.pack("<H", 0) # 0: standard mode
