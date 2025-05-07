@@ -413,7 +413,7 @@ send_irq_response=bytearray(32) # interrupt response to send
 
 # after one IN submit another with response OK
 def respond_ok():
-  send_response[0:12]=struct.pack("<LHHL",12,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,txid)
+  send_response[0:12]=struct.pack("<LHHL",12,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,hdr.txid)
   length_response[0]=12
   # length_response[0] is set now and reset to 0 after IN is submitted
 
