@@ -430,19 +430,8 @@ def respond_ok_tx(id):
 
 def OpenSession(cnt):
   global sesid
-  #global txid,opcode
-  #print("OpenSession")
-  #print("<",end="")
-  #print_hex(cnt)
-  #txid,sesid=struct.unpack("<LL",cnt[8:16])
-  #txid=hdr.txid
   sesid=hdr.p1
-  #print("txid=",txid,"sesid=",sesid)
-  # prepare response 0c 00 00 00  03 00  01 20  00 00 00 00
   hdr_ok()
-  #length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
-  #print(">",end="")
-  #print_hex(i0_usbd_buf)
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # more codes in
@@ -472,11 +461,6 @@ PTP_OFC_Undefined_0x380C=const(0x380C)
 PTP_OFC_TIFF=const(0x380D)
 
 def GetDeviceInfo(cnt): # 0x1001
-  global txid,opcode
-  print("<",end="")
-  print_hex(cnt)
-  opcode=hdr.code
-  txid=hdr.txid
   # prepare response: device info standard 1.00 = 100
   header=struct.pack("<HLH",100,0,100)
   extension=b"\0"
