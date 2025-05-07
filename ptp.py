@@ -23,7 +23,7 @@
 #
 # The device will then change to the custom USB device.
 
-import machine, struct, time, os
+import machine, struct, time, os, uctypes
 #import ecp5
 from micropython import const
 
@@ -165,6 +165,18 @@ USB_REQ_TYPE_CLASS = 0x20
 USB_REQ_TYPE_VENDOR = 0x40
 USB_DIR_OUT = 0x00
 USB_DIR_IN = 0x80
+
+# PTP uctype struct
+# container header
+CNT_HDR_DESC = {
+"len" : 0 | uctypes.UINT32,
+"type": 4 | uctypes.UINT16,
+"code": 6 | uctypes.UINT16,
+"txid": 8 | uctypes.UINT32,
+"p1"  :12 | uctypes.UINT32,
+"p2"  :16 | uctypes.UINT32,
+"p3"  :20 | uctypes.UINT32,
+}
 
 # some USB CTRL commands (FIXME)
 SETSTATUS = 2
@@ -405,7 +417,9 @@ def OpenSession(cnt):
   #print("OpenSession")
   #print("<",end="")
   #print_hex(cnt)
-  txid,sesid=struct.unpack("<LL",cnt[8:16])
+  #txid,sesid=struct.unpack("<LL",cnt[8:16])
+  txid=hdr.txid
+  sesid=hdr.p1
   #print("txid=",txid,"sesid=",sesid)
   # prepare response 0c 00 00 00  03 00  01 20  00 00 00 00
   length=PTP_CNT_INIT(i0_usbd_buf,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK)
@@ -439,12 +453,12 @@ PTP_OFC_PNG=const(0x380B)
 PTP_OFC_Undefined_0x380C=const(0x380C)
 PTP_OFC_TIFF=const(0x380D)
 
-def GetDeviceInfo(cnt):
+def GetDeviceInfo(cnt): # 0x1001
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  opcode,txid=struct.unpack("<HL",cnt[6:12])
-  # opcode 0x1001
+  opcode=hdr.code
+  txid=hdr.txid
   # prepare response: device info standard 1.00 = 100
   header=struct.pack("<HLH",100,0,100)
   extension=b"\0"
@@ -476,11 +490,12 @@ def GetDeviceInfo(cnt):
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
-def GetStorageIDs(cnt):
+def GetStorageIDs(cnt): # 0x1004
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  opcode,txid=struct.unpack("<HL",cnt[6:12])
+  opcode=hdr.code
+  txid=hdr.txid
   # opcode 0x1004
   # prepare response
   # actually a PTP array
@@ -516,12 +531,13 @@ STORAGE_READ_WRITE=const(0)
 STORAGE_READ_ONLY_WITHOUT_DELETE=const(1)
 STORAGE_READ_ONLY_WITH_DELETE=const(2)
 
-def GetStorageInfo(cnt):
+def GetStorageInfo(cnt): # 0x1005
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  opcode,txid,storageid=struct.unpack("<HLL",cnt[6:16])
-  # opcode 0x1005
+  opcode=hdr.code
+  txid=hdr.txid
+  storageid=hdr.p1
   # prepare response
   StorageType=STORAGE_FIXED_MEDIA
   FilesystemType=2
@@ -535,8 +551,8 @@ def GetStorageInfo(cnt):
   FreeSpaceInImages=0x10000
   StorageDescription=ucs2_string(STORAGE)
   VolumeLabel=ucs2_string(VOLUME)
-  hdr=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
-  data=hdr+StorageDescription+VolumeLabel
+  hdr1=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
+  data=hdr1+StorageDescription+VolumeLabel
   length=PTP_CNT_INIT_DATA(i0_usbd_buf,PTP_USB_CONTAINER_DATA,opcode,data)
   respond_ok()
   print(">",end="")
@@ -545,12 +561,14 @@ def GetStorageInfo(cnt):
 
 # for given handle id of a directory
 # returns array of handles
-def GetObjectHandles(cnt):
+def GetObjectHandles(cnt): # 0x1007
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  opcode,txid,_,_,dirhandle=struct.unpack("<HLLLL",cnt[6:24])
-  # opcode 0x1007
+  #opcode,txid,_,_,dirhandle=struct.unpack("<HLLLL",cnt[6:24])
+  opcode=hdr.code
+  txid=hdr.txid
+  dirhandle=hdr.p3
   # unpack parameter
   if dirhandle==0xFFFFFFFF or dirhandle==0x10001: # root directory
     dirhandle=0
@@ -583,11 +601,14 @@ def GetObjectHandles(cnt):
 # PTP_oi_filenamelen		52
 # PTP_oi_Filename               53
 
-def GetObjectInfo(cnt):
+def GetObjectInfo(cnt): # 0x1008
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
+  #opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
+  opcode=hdr.code
+  txid=hdr.txid
+  objh=hdr.p1
   print("objh=%08x" % objh)
   StorageID=0x10001
   ObjectFormat=PTP_OFC_Text
@@ -630,12 +651,14 @@ def GetObjectInfo(cnt):
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
-def GetObject(cnt):
+def GetObject(cnt): # 0x1009
   global txid,opcode,remain_getobj_len,fd
   print("<",end="")
   print_hex(cnt)
-  opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
-  # opcode 0x1009
+  #opcode,txid,objh=struct.unpack("<HLL",cnt[6:16])
+  opcode=hdr.code
+  txid=hdr.txid
+  objh=hdr.p1
   length=0
   if objh in handle2path:
     fullpath=handle2path[objh]
@@ -659,12 +682,14 @@ def GetObject(cnt):
   #print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
-def DeleteObject(cnt):
+def DeleteObject(cnt): # 0x100B
   global txid,opcode
   print("<",end="")
   print_hex(cnt)
-  opcode,txid,h=struct.unpack("<HLL",cnt[6:16])
-  # opcode 0x100B
+  #opcode,txid,h=struct.unpack("<HLL",cnt[6:16])
+  opcode=hdr.code
+  txid=hdr.txid
+  h=hdr.p1
   p=parent(h) # parent dir where to delete
   parent_path=handle2path[p]
   #print("deleting p=",p,"h=",h)
@@ -686,13 +711,14 @@ def DeleteObject(cnt):
   print_hex(i0_usbd_buf[:length])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
-def SendObjectInfo(cnt):
+def SendObjectInfo(cnt): # 0x100C
   global txid,opcode,send_length,send_name,next_handle,current_send_handle
   global send_parent,send_parent_path,send_fullpath
   print("<",end="")
   print_hex(cnt)
-  type,opcode,txid=struct.unpack("<HHL",cnt[4:12])
-  # opcode= always 0x100C
+  type=hdr.type
+  opcode=hdr.code
+  txid=hdr.txid
   if type==PTP_USB_CONTAINER_COMMAND: # 1
     send_parent,=struct.unpack("<L",cnt[16:20])
     if send_parent==0xffffffff:
@@ -836,6 +862,9 @@ usb_buf = bytearray(64)
 # must be multiple of 64 bytes
 i0_usbd_buf = bytearray(1024)
 
+# fixed parsed ptp header
+hdr=uctypes.struct(uctypes.addressof(i0_usbd_buf),CNT_HDR_DESC,uctypes.LITTLE_ENDIAN)
+
 # not used
 # on linux device works without supporting
 # any of the control transfers
@@ -885,9 +914,9 @@ def ep1_out_done(result, xferred_bytes):
       # signal to host we have received entire file
       irq_sendobject_complete(current_send_handle)
   else:
-    code,=struct.unpack("<H",i0_usbd_buf[6:8])
-    print("0x%04x %s" % (code,ptp_opcode_cb[code].__name__))
-    ptp_opcode_cb[code](i0_usbd_buf[:xferred_bytes])
+    #code,=struct.unpack("<H",i0_usbd_buf[6:8])
+    print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
+    ptp_opcode_cb[hdr.code](i0_usbd_buf[:xferred_bytes])
 
 def ep1_in_done(result, xferred_bytes):
   global remain_getobj_len,fd
