@@ -66,10 +66,16 @@ edit source "ptp.py".
 on windows 10 it works the same.
 
 on linux MTP is handled by libmtp while PTP is
-handled by libgphoto2, so MTP browsing, write,
+handled by libgphoto2
+
+from linux gnome MTP browsing, write,
 delete works but reading files doesn't work.
 Attept to read file from gnome reports
 "Errno 95 Operation Not Supported".
+
+It is because gnome tries to open USB device
+from gphoto2 while same device is already
+claimed by MTP.
 
 Getting debug logs from linux gnome
 
@@ -91,3 +97,23 @@ Terminate gvfs daemons after that.
 pkill gvfs
 
 (GVfs will operate as usual after this step.)
+
+Trying mtp alone
+
+    apt install mtp-tools
+    pkill gvfs; pkill nautilus
+    mtp-files
+    File ID: 11
+        Filename: sdpin.py
+        File size 189 (0x00000000000000BD) bytes
+        Parent ID: 0
+        Storage ID: 0x00010001
+        Filetype: Text file
+
+    mtp-getfile 0 11 sdpin.py
+    libmtp version: 1.1.22
+
+    Device 0 (VID=1234 and PID=abcd) is UNKNOWN in libmtp v1.1.22.
+    Please report this VID/PID and the device model to the libmtp development team
+    Getting file/track 11 to local file sdpin.py
+    Progress: 205 of 205 (100%)
