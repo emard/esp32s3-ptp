@@ -648,7 +648,7 @@ def SendObjectInfo(cnt): # 0x100C
       # TODO update length after send has finished
       old_d2h=dir2handle[send_parent][current_send_handle]
       # ls() will refresh dir2handle
-      #dir2handle[send_parent][current_send_handle]=old_d2h[:-1]+(send_length,)
+      dir2handle[send_parent][current_send_handle]=old_d2h[:-1]+(send_length,)
     else:
       next_handle+=1
       current_send_handle=next_handle
