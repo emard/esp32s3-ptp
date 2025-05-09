@@ -435,7 +435,7 @@ def GetDeviceInfo(cnt): # 0x1001
   # prepare response: device info standard 1.00 = 100
   header=struct.pack("<HLH",100,0,100)
   extension=b"\0"
-  #extension=ucs2_string(b"microsoft.com: 1.0")
+  #extension=ucs2_string(b"android.com")
   functional_mode=struct.pack("<H", 0) # 0: standard mode
   #operations=uint16_array(list((ptp_opcode_cb.keys()))) # human readable
   operations=uint16_array(ptp_opcode_cb) # short of previous line
