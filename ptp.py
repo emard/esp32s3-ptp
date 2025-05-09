@@ -31,10 +31,6 @@ from micropython import const
 VID = const(0x1234)
 PID = const(0xabcd)
 
-# Endpoint 0 for setup
-#EP0_IN    = 0x80
-#EP0_OUT   = 0x01
-
 # USB endpoints used by the device.
 # interface 0
 I0_EP1_IN=const(0x81)
@@ -60,15 +56,10 @@ VOLUME=b"iVolume"
 STORID=const(0x10001)
 # PTP
 # USB Still Image Capture Class defines
-USB_CLASS_IMAGE=const(6)
+# set all 3 lines 255 to avoid system default driver
+USB_CLASS_IMAGE=const(6) # imaging
 STILL_IMAGE_SUBCLASS=const(1) # still image cam
-STILL_IMAGE_PROTOCOL=const(1)
-
-# no driver loaded, vendor-spec to avoid
-# loading of system default drivers during debug
-#USB_CLASS_IMAGE=const(255)
-#STILL_IMAGE_SUBCLASS=const(255)
-#STILL_IMAGE_PROTOCOL=const(255)
+STILL_IMAGE_PROTOCOL=const(1) # cam
 
 # Class-Specific Requests - bRequest values
 STILL_IMAGE_CANCEL_REQUEST=const(0x64)
@@ -347,14 +338,6 @@ def print_ucs2_string(s):
   for i in range(s[0]):
     print("%c" % s[1+i+i],end="")
   print("")
-
-# DeviceInfo pack/unpack
-#PTP_di_StandardVersion=const(0)
-#PTP_di_VendorExtensionID=const(2)
-#PTP_di_VendorExtensionVersion=const(6)
-#PTP_di_VendorExtensionDesc=const(8)
-#PTP_di_FunctionalMode=const(8)
-#PTP_di_Operations=const(10)
 
 # pack a tuple as 16-bit array for deviceinfo
 def uint16_array(a):
