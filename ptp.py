@@ -378,6 +378,10 @@ def hdr_ok():
   hdr.code=PTP_RC_OK
   return 12
 
+def in_hdr_ok():
+  hdr_ok()
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+
 # after one IN submit another with response OK
 def respond_ok():
   send_response[0:12]=struct.pack("<LHHL",12,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,hdr.txid)
@@ -399,8 +403,7 @@ def in_hdr_data(data):
 def OpenSession(cnt):
   global sesid
   sesid=hdr.p1
-  hdr_ok()
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+  in_hdr_ok()
 
 # more codes in
 # git clone https://github.com/gphoto/libgphoto2
@@ -610,10 +613,7 @@ def DeleteObject(cnt): # 0x100B
   else: # objtype==VFS_FILE: # file
     del(path2handle[parent_path][objname])
   print("deleted",fullpath)
-  hdr_ok()
-  #print(">",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+  in_hdr_ok()
 
 def SendObjectInfo(cnt): # 0x100C
   global txid,send_length,send_name,next_handle,current_send_handle
@@ -723,10 +723,7 @@ def SendObject(cnt): # 0x100D
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
 
 def CloseSession(cnt): # 0x1007
-  hdr_ok()
-  #print(">",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+  in_hdr_ok()
 
 # opcodes starting from 0x1000 - callback functions
 # more in libgphoto2 ptp.h and ptp.c
