@@ -404,6 +404,14 @@ def respond_ok_tx(id):
   send_response[0:12]=struct.pack("<LHHL",12,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,id)
   length_response[0]=12
 
+def in_hdr_data(data):
+  hdr.len=12+len(data)
+  hdr.type=PTP_USB_CONTAINER_DATA
+  i0_usbd_buf[12:hdr.len]=data
+  #print(">",end="")
+  #print_hex(i0_usbd_buf[:hdr.len])
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+
 def OpenSession(cnt):
   global sesid
   sesid=hdr.p1
@@ -463,22 +471,12 @@ def GetDeviceInfo(cnt): # 0x1001
   serialnumber=ucs2_string(SERIAL)
   data=header+extension+functional_mode+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
   respond_ok()
-  hdr.len=12+len(data)
-  hdr.type=PTP_USB_CONTAINER_DATA
-  i0_usbd_buf[12:hdr.len]=data
-  #print(">",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+  in_hdr_data(data)
 
 def GetStorageIDs(cnt): # 0x1004
   data=uint32_array([STORID])
   respond_ok()
-  hdr.len=12+len(data)
-  hdr.type=PTP_USB_CONTAINER_DATA
-  i0_usbd_buf[12:hdr.len]=data
-  #print(">",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+  in_hdr_data(data)
 
 # PTP_si_StorageType               0
 # PTP_si_FilesystemType            2
@@ -518,12 +516,7 @@ def GetStorageInfo(cnt): # 0x1005
   hdr1=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
   data=hdr1+StorageDescription+VolumeLabel
   respond_ok()
-  hdr.len=12+len(data)
-  hdr.type=PTP_USB_CONTAINER_DATA
-  i0_usbd_buf[12:hdr.len]=data
-  #print(">",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+  in_hdr_data(data)
 
 # for given handle id of a directory
 # returns array of handles
@@ -537,12 +530,7 @@ def GetObjectHandles(cnt): # 0x1007
   # would not fit in one 1024 byte block
   # block continuation neede
   respond_ok()
-  hdr.len=12+len(data)
-  hdr.type=PTP_USB_CONTAINER_DATA
-  i0_usbd_buf[12:hdr.len]=data
-  #print(">",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+  in_hdr_data(data)
 
 # PTP_oi_StorageID		 0
 # PTP_oi_ObjectFormat		 4
@@ -598,12 +586,7 @@ def GetObjectInfo(cnt): # 0x1008
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     #data=header+name+b"\0\0\0"
     respond_ok()
-    hdr.len=12+len(data)
-    hdr.type=PTP_USB_CONTAINER_DATA
-    i0_usbd_buf[12:hdr.len]=data
-  #print(">",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+    in_hdr_data(data)
 
 def GetObject(cnt): # 0x1009
   global txid,remain_getobj_len,fd
