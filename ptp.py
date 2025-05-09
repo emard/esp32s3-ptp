@@ -166,6 +166,7 @@ CNT_HDR_DESC = {
 "code": 6 | uctypes.UINT16,
 "txid": 8 | uctypes.UINT32,
 "p1"  :12 | uctypes.UINT32,
+"h2"  :16 | uctypes.UINT16,
 "p2"  :16 | uctypes.UINT32,
 "p3"  :20 | uctypes.UINT32,
 }
@@ -545,7 +546,7 @@ def GetObjectInfo(cnt): # 0x1008
     fullpath=handle2path[objh]
     print(fullpath)
     ParentObject=parent(objh) # 0 means this file is in root directory
-    (objname,objtype,_,objsize)=dir2handle[ParentObject][objh]
+    objname,objtype,_,objsize=dir2handle[ParentObject][objh]
     #stat=os.stat(fullpath)
     #objname=basename(objh)
     #if handle2path[objh][-1]=="/":
@@ -567,7 +568,6 @@ def GetObjectInfo(cnt): # 0x1008
     modify=create
     #data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
-    #data=header+name+b"\0\0\0"
     respond_ok()
     in_hdr_data(data)
 
@@ -597,13 +597,13 @@ def DeleteObject(cnt): # 0x100B
   p=parent(h) # parent dir where to delete
   parent_path=handle2path[p]
   #print("deleting p=",p,"h=",h)
+  #print("parent path",parent_path)
   objname=basename(h)
   objtype=dir2handle[p][h][1]
   fullpath=handle2path[h]
   os.unlink(fullpath)
   del(dir2handle[p][h])
   del(handle2path[h])
-  #print("parent path",parent_path)
   if objtype==VFS_DIR: # dir
     del(path2handle[parent_path+objname+"/"])
     del(path2handle[parent_path][objname+"/"])
@@ -620,7 +620,8 @@ def SendObjectInfo(cnt): # 0x100C
   global send_parent,send_parent_path,send_fullpath
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
-    send_parent,=struct.unpack("<L",cnt[16:20])
+    #send_parent,=struct.unpack("<L",cnt[16:20])
+    send_parent=hdr.p2
     if send_parent==0xffffffff:
       send_parent=0
     #print("send_parent: 0x%x" % send_parent)
@@ -632,12 +633,13 @@ def SendObjectInfo(cnt): # 0x100C
   if hdr.type==PTP_USB_CONTAINER_DATA: # 2
     # we just have received data from host
     # host sends in advance file length to be sent
-    send_objtype,=struct.unpack("<H",cnt[16:18])
+    send_objtype=hdr.h2
     #print("send objtype 0x%04x" % send_objtype)
     send_name=get_ucs2_string(cnt[64:])
     str_send_name=decode_ucs2_string(send_name)[:-1].decode()
     #print("send name:", str_send_name)
-    send_length,=struct.unpack("<L", cnt[20:24])
+    #send_length,=struct.unpack("<L", cnt[20:24])
+    send_length=hdr.p3
     #print("send length:", send_length)
     send_fullpath=handle2path[send_parent]+str_send_name
     #print("fullpath",send_fullpath)
@@ -645,6 +647,7 @@ def SendObjectInfo(cnt): # 0x100C
       current_send_handle=path2handle[send_parent_path][str_send_name]
       # TODO update length after send has finished
       old_d2h=dir2handle[send_parent][current_send_handle]
+      # ls() will refresh dir2handle
       #dir2handle[send_parent][current_send_handle]=old_d2h[:-1]+(send_length,)
     else:
       next_handle+=1
@@ -666,8 +669,7 @@ def SendObjectInfo(cnt): # 0x100C
     #print("current send handle",current_send_handle)
     # send OK response to host
     hdr_ok()
-    # extended "OK" response
-    # with 3 addional 32-bit fields:
+    # extend "OK" response with 3 addional 32-bit fields:
     # storage_id, parend_id, object_id
     hdr.len=24
     hdr.p1=STORID
