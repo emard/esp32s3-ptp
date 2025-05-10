@@ -488,6 +488,7 @@ STORAGE_READ_ONLY_WITH_DELETE=const(2)
 
 def GetStorageInfo(cnt): # 0x1005
   storageid=hdr.p1
+  print("storageid 0x%08x" % storageid)
   StorageType=STORAGE_FIXED_MEDIA
   FilesystemType=2
   AccessCapability=STORAGE_READ_WRITE
@@ -508,10 +509,18 @@ def GetStorageInfo(cnt): # 0x1005
 # for given handle id of a directory
 # returns array of handles
 def GetObjectHandles(cnt): # 0x1007
+  storageid=hdr.p1
+  print("storageid 0x%08x" % storageid)
+  if storageid==0xFFFFFFFF:
+    in_hdr_ok()
+    return
   dirhandle=hdr.p3
-  if dirhandle==0xFFFFFFFF or dirhandle==STORID: # root directory
+  if dirhandle==0xFFFFFFFF: # root directory
     dirhandle=0
-  ls(handle2path[dirhandle],1)
+  if dirhandle==0:
+    ls("/",1)
+  else:
+    ls(handle2path[dirhandle],1)
   data=uint32_array(objects(dirhandle))
   # FIXME when directory has many entries > 256 data
   # would not fit in one 1024 byte block
@@ -620,6 +629,8 @@ def SendObjectInfo(cnt): # 0x100C
   global send_parent,send_parent_path,send_fullpath
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
+    storageid=hdr.p1
+    print("storageid 0x%08x" % storageid)
     #send_parent,=struct.unpack("<L",cnt[16:20])
     send_parent=hdr.p2
     if send_parent==0xffffffff:
@@ -861,7 +872,7 @@ def _xfer_cb(ep_addr,result,xferred_bytes):
 # intialy do not fetch full tree
 # but only the root. Browsing
 # later will fetch subdirs on-demand
-ls("/",0)
+#ls("/",0)
 
 # Switch the USB device to our custom USB driver.
 usbd = machine.USBDevice()
