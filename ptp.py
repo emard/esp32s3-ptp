@@ -50,10 +50,12 @@ CONFIGURATION=b"iConfiguration"
 INTERFACE0=b"iInterface0" # libgphoto2
 INTERFACE1=b"iInterface1"
 VERSION=b"3.1.8"
-STORAGE=b"iStorage"
+STORAGE={0x10001:b"vfs", 0x20002:b"empty"}
 VOLUME=b"iVolume"
 
-STORID=const(0x10001)
+STORID=[0x10001,0x20002] # lower and upper 16-bit the same
+STORID_VFS=0x10001 # micropython VFS
+current_storid=STORID_VFS # must choose one
 # PTP
 # USB Still Image Capture Class defines
 # set all 3 lines 255 to avoid system default driver
@@ -396,11 +398,11 @@ def in_hdr_data(data):
   hdr.len=12+len(data)
   hdr.type=PTP_USB_CONTAINER_DATA
   i0_usbd_buf[12:hdr.len]=data
-  #print(">",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
+  print(">",end="")
+  print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
-def OpenSession(cnt):
+def OpenSession(cnt,code):
   global sesid
   sesid=hdr.p1
   in_hdr_ok()
@@ -431,14 +433,15 @@ PTP_OFC_Text=const(0x3004)
 #PTP_OFC_Undefined_0x380C=const(0x380C)
 #PTP_OFC_TIFF=const(0x380D)
 
-def GetDeviceInfo(cnt): # 0x1001
+def GetDeviceInfo(cnt,code): # 0x1001
   # prepare response: device info standard 1.00 = 100
   header=struct.pack("<HLH",100,0,100)
   extension=b"\0"
   #extension=ucs2_string(b"android.com")
   functional_mode=struct.pack("<H", 0) # 0: standard mode
-  #operations=uint16_array(list((ptp_opcode_cb.keys()))) # human readable
-  operations=uint16_array(ptp_opcode_cb) # short of previous line
+  # unique lower 16-bit keys from ptp_opcode_cb.keys()
+  #operations=uint16_array(set([code&0xFFFF for code in list((ptp_opcode_cb.keys()))])) # human readable
+  operations=uint16_array(set([code&0xFFFF for code in ptp_opcode_cb])) # short of previous line, set filters unique only
   events=uint16_array((PTP_EC_ObjectInfoChanged,))
   deviceprops=uint16_array((PTP_DPC_DateTime,))
   captureformats=uint16_array(())
@@ -460,8 +463,8 @@ def GetDeviceInfo(cnt): # 0x1001
   respond_ok()
   in_hdr_data(data)
 
-def GetStorageIDs(cnt): # 0x1004
-  data=uint32_array([STORID])
+def GetStorageIDs(cnt,code): # 0x1004
+  data=uint32_array(STORID)
   respond_ok()
   in_hdr_data(data)
 
@@ -486,7 +489,7 @@ STORAGE_READ_WRITE=const(0)
 STORAGE_READ_ONLY_WITHOUT_DELETE=const(1)
 STORAGE_READ_ONLY_WITH_DELETE=const(2)
 
-def GetStorageInfo(cnt): # 0x1005
+def GetStorageInfo(cnt,code): # 0x1005
   storageid=hdr.p1
   print("storageid 0x%08x" % storageid)
   StorageType=STORAGE_FIXED_MEDIA
@@ -499,7 +502,7 @@ def GetStorageInfo(cnt): # 0x1005
   MaxCapability=blksize*blkmax
   FreeSpaceInBytes=blksize*blkfree
   FreeSpaceInImages=0x10000
-  StorageDescription=ucs2_string(STORAGE)
+  StorageDescription=ucs2_string(STORAGE[storageid])
   VolumeLabel=ucs2_string(VOLUME)
   hdr1=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
   data=hdr1+StorageDescription+VolumeLabel
@@ -508,11 +511,14 @@ def GetStorageInfo(cnt): # 0x1005
 
 # for given handle id of a directory
 # returns array of handles
-def GetObjectHandles(cnt): # 0x1007
+def GetObjectHandles(cnt,code): # 0x1007
   storageid=hdr.p1
   print("storageid 0x%08x" % storageid)
-  if storageid==0xFFFFFFFF:
-    in_hdr_ok()
+  if storageid==0xFFFFFFFF or storageid!=STORID_VFS:
+    # return empty storage
+    respond_ok()
+    data=uint32_array([])
+    in_hdr_data(data)
     return
   dirhandle=hdr.p3
   if dirhandle==0xFFFFFFFF: # root directory
@@ -546,10 +552,10 @@ def GetObjectHandles(cnt): # 0x1007
 # PTP_oi_filenamelen		52
 # PTP_oi_Filename               53
 
-def GetObjectInfo(cnt): # 0x1008
+def GetObjectInfo(cnt,code): # 0x1008
   objh=hdr.p1
   #print("objh=%08x" % objh)
-  StorageID=STORID
+  StorageID=STORID_VFS
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
   thumb_image_null=bytearray(26)
@@ -583,7 +589,7 @@ def GetObjectInfo(cnt): # 0x1008
     respond_ok()
     in_hdr_data(data)
 
-def GetObject(cnt): # 0x1009
+def GetObject(cnt,code): # 0x1009
   global txid,remain_getobj_len,fd
   txid=hdr.txid
   if hdr.p1 in handle2path:
@@ -604,7 +610,7 @@ def GetObject(cnt): # 0x1009
       respond_ok_tx(txid)
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
-def DeleteObject(cnt): # 0x100B
+def DeleteObject(cnt,code): # 0x100B
   h=hdr.p1
   p=parent(h) # parent dir where to delete
   parent_path=handle2path[p]
@@ -624,13 +630,15 @@ def DeleteObject(cnt): # 0x100B
   print("deleted",fullpath)
   in_hdr_ok()
 
-def SendObjectInfo(cnt): # 0x100C
+def SendObjectInfo(cnt,code): # 0x100C
   global txid,send_length,send_name,next_handle,current_send_handle
   global send_parent,send_parent_path,send_fullpath
+  global current_storid
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
     storageid=hdr.p1
     print("storageid 0x%08x" % storageid)
+    current_storid=storageid
     #send_parent,=struct.unpack("<L",cnt[16:20])
     send_parent=hdr.p2
     if send_parent==0xffffffff:
@@ -683,7 +691,7 @@ def SendObjectInfo(cnt): # 0x100C
     # extend "OK" response with 3 addional 32-bit fields:
     # storage_id, parend_id, object_id
     hdr.len=24
-    hdr.p1=STORID
+    hdr.p1=current_storid
     hdr.p2=send_parent
     hdr.p3=current_send_handle
     #print(">",end="")
@@ -703,7 +711,7 @@ def irq_sendobject_complete(objecthandle):
   #ecp5.prog_close()
 
 # FIXME readinto first block instead of copy
-def SendObject(cnt): # 0x100D
+def SendObject(cnt,code): # 0x100D
   global txid,send_length,remaining_send_length,fd
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
@@ -733,23 +741,37 @@ def SendObject(cnt): # 0x100D
       # prepare full buffer to read again from host
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
 
-def CloseSession(cnt): # 0x1007
+def CloseSession(cnt,code): # 0x1007
   in_hdr_ok()
 
-# opcodes starting from 0x1000 - callback functions
+# opcodes lower 16 bits starting from 0x1000
+# callback functions
+# upper 16-bits are same as upper 16 bits storage id
 # more in libgphoto2 ptp.h and ptp.c
 ptp_opcode_cb = {
-  0x1001:GetDeviceInfo,
-  0x1002:OpenSession,
-  0x1003:CloseSession,
-  0x1004:GetStorageIDs,
-  0x1005:GetStorageInfo,
-  0x1007:GetObjectHandles,
-  0x1008:GetObjectInfo,
-  0x1009:GetObject,
-  0x100B:DeleteObject,
-  0x100C:SendObjectInfo,
-  0x100D:SendObject,
+  0x11001:GetDeviceInfo,
+  0x11002:OpenSession,
+  0x11003:CloseSession,
+  0x11004:GetStorageIDs,
+  0x11005:GetStorageInfo,
+  0x11007:GetObjectHandles,
+  0x11008:GetObjectInfo,
+  0x11009:GetObject,
+  0x1100B:DeleteObject,
+  0x1100C:SendObjectInfo,
+  0x1100D:SendObject,
+  # second storage, the same callbacks
+  0x21001:GetDeviceInfo,
+  0x21002:OpenSession,
+  0x21003:CloseSession,
+  0x21004:GetStorageIDs,
+  0x21005:GetStorageInfo,
+  0x21007:GetObjectHandles,
+  0x21008:GetObjectInfo,
+  0x21009:GetObject,
+  0x2100B:DeleteObject,
+  0x2100C:SendObjectInfo,
+  0x2100D:SendObject,
 }
 
 # EP0 control requests handlers
@@ -821,10 +843,15 @@ def ep1_out_done(result, xferred_bytes):
       # signal to host we have received entire file
       irq_sendobject_complete(current_send_handle)
   else:
-    print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
-    #print("<",end="")
-    #print_hex(i0_usbd_buf[:xferred_bytes])
-    ptp_opcode_cb[hdr.code](i0_usbd_buf[:xferred_bytes])
+    # combine upper 16-bit of storage id
+    # with lower 16-bit of header code to
+    # select the callback
+    # TODO simple support for multiple storages
+    mix_code=(current_storid&0xFFFF0000)|hdr.code
+    print("0x%04x %s" % (mix_code,ptp_opcode_cb[mix_code].__name__))
+    print("<",end="")
+    print_hex(i0_usbd_buf[:xferred_bytes])
+    ptp_opcode_cb[mix_code](i0_usbd_buf[:xferred_bytes],mix_code)
 
 def ep1_in_done(result, xferred_bytes):
   global remain_getobj_len,fd
