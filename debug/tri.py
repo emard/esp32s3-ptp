@@ -49,3 +49,10 @@ def ls(path:str):
       oh2path[oh]=fullpath
     cur_list[oh]=obj
     print(oh,fullpath,obj)
+
+# for a given object id return
+# its parent directory
+def parent(oh):
+  path=oh2path[oh]
+  pp=path[:path[:-1].rfind("/")+1]
+  return path2oh[pp]
