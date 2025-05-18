@@ -194,9 +194,6 @@ fd=None # local open file descriptor
 # for ls() generating vfs directory tree
 # global handle incremented
 next_handle=0
-path2handle={}
-handle2path={}
-dir2handle={}
 current_send_handle=0
 
 # simplified structure
@@ -205,9 +202,7 @@ current_send_handle=0
 path2oh={}
 oh2path={}
 # current list example
-# { 1:('main.py',32768,0,123),
-#   2:('lib',16384,0,0),
-# }
+# { 1:('main.py',32768,0,123), 2:('lib',16384,0,0), }
 cur_list={}
 # object id of current parent directory
 cur_parent=0
@@ -218,7 +213,7 @@ cur_parent=0
 # path is directory with trailing slash
 # recurse in number of subdirs to descend
 def ls(path:str):
-  global path2oh,oh2path,next_handle,cur_parent,cur_list
+  global next_handle,cur_parent,cur_list
   try:
     dir=os.ilistdir(path)
   except:
@@ -253,85 +248,6 @@ def parent(oh:int)->int:
   path=oh2path[oh]
   pp=path[:path[:-1].rfind("/")+1]
   return path2oh[pp]
-
-
-# --- begin old code complex buffering ---
-
-# for given object handle "oh" find it's parent
-# actually a handle of directory which
-# holds this file
-def parent_defunct(oh):
-  path=handle2path[oh]
-  if path[-1]=="/" and path!="/":
-    dirname=path[:path[:-1].rfind("/")+1]
-  else:
-    dirname=path[:path.rfind("/")+1]
-  return path2handle[dirname][0]
-
-# get list of objects from directory handle "dh"
-def objects_defunct(dh):
-  return list(path2handle[handle2path[dh]].values())[1:]
-
-# objects: use list(cur_list)
-
-def basename_defunct(oh):
-  fullname=handle2path[oh]
-  if fullname=="/":
-    return "/"
-  if fullname[-1]=="/":
-    return fullname[fullname[:-1].rfind("/")+1:-1]
-  return fullname[fullname.rfind("/")+1:]
-
-# use basename = cur_list[oh][0]
-
-# path: full path string
-# recurse: number of subdirectorys to recurse into
-def ls_defunct(path,recurse):
-  global next_handle
-  try:
-    dir=os.ilistdir(path)
-  except:
-    return
-  # if path doesn't trail with slash, add slash
-  if path[-1]!="/":
-    path+="/"
-  # path -> handle and handle -> path
-  # "/lib" in {}
-  if path in path2handle:
-    current_dir=path2handle[path][0]
-  else:
-    current_dir=next_handle
-    next_handle+=1
-    path2handle[path]={0:current_dir}
-    handle2path[current_dir]=path
-  # id -> directory list
-  if not current_dir in dir2handle:
-    dir2handle[current_dir]={}
-  for obj in dir:
-    objname=obj[0]
-    fullpath=path+objname
-    if objname in path2handle[path]:
-      current_handle=path2handle[path][objname]
-    else:
-      current_handle=next_handle
-      next_handle+=1
-    if obj[1]==VFS_DIR: # obj[1]==DIR
-      #print(path,"DIR:",obj)
-      if recurse>0:
-        newhandle=ls(fullpath,recurse-1)
-        dir2handle[current_dir][newhandle]=obj
-        objname_=objname+"/"
-        if not objname_ in path2handle[path]:
-          path2handle[path][objname_]=newhandle
-    else: # obj[1]==FILE
-      dir2handle[current_dir][current_handle]=obj
-      #print(path,"FILE:",obj)
-      if not objname in path2handle[path]:
-        path2handle[path][objname]=current_handle
-        handle2path[current_handle]=fullpath
-  return current_dir
-
-# --- end old code complex buffering ---
 
 # USB PTP "type" 16-bit field
 PTP_USB_CONTAINER_UNDEFINED=const(0)
