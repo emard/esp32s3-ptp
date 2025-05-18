@@ -50,11 +50,12 @@ CONFIGURATION=b"iConfiguration"
 INTERFACE0=b"iInterface0" # libgphoto2
 INTERFACE1=b"iInterface1"
 VERSION=b"3.1.8"
-STORAGE={0x10001:b"vfs", 0x20002:b"empty"}
+STORAGE={0x10001:b"vfs", 0x20002:b"custom"}
 VOLUME=b"iVolume"
 
 STORID=[0x10001,0x20002] # lower and upper 16-bit the same
 STORID_VFS=0x10001 # micropython VFS
+STORID_CUSTOM=0x20002 # custom for FPGA
 current_storid=STORID_VFS # must choose one
 # PTP
 # USB Still Image Capture Class defines
@@ -198,10 +199,68 @@ handle2path={}
 dir2handle={}
 current_send_handle=0
 
+# simplified structure
+# path->object handle caches every os.ilistdir object
+# {'/':0,'/lib/':1,'main.py':2,'/lib/test.py':3}
+path2oh={}
+oh2path={}
+# current list example
+# { 1:('main.py',32768,0,123),
+#   2:('lib',16384,0,0),
+# }
+cur_list={}
+# object id of current parent directory
+cur_parent=0
+
+# list directory items
+# update internal cache path -> object id
+# cache obtained list of objects for later use
+# path is directory with trailing slash
+# recurse in number of subdirs to descend
+def ls(path:str):
+  global path2oh,oh2path,next_handle,cur_parent,cur_list
+  try:
+    dir=os.ilistdir(path)
+  except:
+    return
+  if path in path2oh:
+    cur_parent=path2oh[path]
+  else:
+    cur_parent=next_handle
+    next_handle+=1
+    path2oh[path]=cur_parent
+    oh2path[cur_parent]=path    
+  cur_list={}
+  for obj in dir:
+    if obj[1]==VFS_FILE:
+      objname=obj[0]
+    if obj[1]==VFS_DIR:
+      objname=obj[0]+"/"
+    fullpath=path+objname
+    if fullpath in path2oh:
+      oh=path2oh[fullpath]
+    else:
+      oh=next_handle
+      next_handle+=1
+      path2oh[fullpath]=oh
+      oh2path[oh]=fullpath
+    cur_list[oh]=obj
+    print(oh,fullpath,obj)
+
+# for a given object id return
+# its parent directory
+def parent(oh:int)->int:
+  path=oh2path[oh]
+  pp=path[:path[:-1].rfind("/")+1]
+  return path2oh[pp]
+
+
+# --- begin old code complex buffering ---
+
 # for given object handle "oh" find it's parent
 # actually a handle of directory which
 # holds this file
-def parent(oh):
+def parent_defunct(oh):
   path=handle2path[oh]
   if path[-1]=="/" and path!="/":
     dirname=path[:path[:-1].rfind("/")+1]
@@ -210,10 +269,12 @@ def parent(oh):
   return path2handle[dirname][0]
 
 # get list of objects from directory handle "dh"
-def objects(dh):
+def objects_defunct(dh):
   return list(path2handle[handle2path[dh]].values())[1:]
 
-def basename(oh):
+# objects: use list(cur_list)
+
+def basename_defunct(oh):
   fullname=handle2path[oh]
   if fullname=="/":
     return "/"
@@ -221,9 +282,11 @@ def basename(oh):
     return fullname[fullname[:-1].rfind("/")+1:-1]
   return fullname[fullname.rfind("/")+1:]
 
+# use basename = cur_list[oh][0]
+
 # path: full path string
 # recurse: number of subdirectorys to recurse into
-def ls(path,recurse):
+def ls_defunct(path,recurse):
   global next_handle
   try:
     dir=os.ilistdir(path)
@@ -267,6 +330,8 @@ def ls(path,recurse):
         path2handle[path][objname]=current_handle
         handle2path[current_handle]=fullpath
   return current_dir
+
+# --- end old code complex buffering ---
 
 # USB PTP "type" 16-bit field
 PTP_USB_CONTAINER_UNDEFINED=const(0)
@@ -514,7 +579,7 @@ def GetStorageInfo(cnt,code): # 0x1005
 def GetObjectHandles(cnt,code): # 0x1007
   storageid=hdr.p1
   print("storageid 0x%08x" % storageid)
-  if storageid==0xFFFFFFFF or storageid!=STORID_VFS:
+  if storageid==0xFFFFFFFF or storageid==STORID_CUSTOM:
     # return empty storage
     respond_ok()
     data=uint32_array([])
@@ -524,10 +589,10 @@ def GetObjectHandles(cnt,code): # 0x1007
   if dirhandle==0xFFFFFFFF: # root directory
     dirhandle=0
   if dirhandle==0:
-    ls("/",1)
+    ls("/")
   else:
-    ls(handle2path[dirhandle],1)
-  data=uint32_array(objects(dirhandle))
+    ls(oh2path[dirhandle])
+  data=uint32_array(cur_list)
   # FIXME when directory has many entries > 256 data
   # would not fit in one 1024 byte block
   # block continuation neede
@@ -560,14 +625,15 @@ def GetObjectInfo(cnt,code): # 0x1008
   ProtectionStatus=0
   thumb_image_null=bytearray(26)
   assoc_seq_null=bytearray(10)
-  if objh in handle2path:
-    fullpath=handle2path[objh]
+  if objh in oh2path:
+    fullpath=oh2path[objh]
     print(fullpath)
     ParentObject=parent(objh) # 0 means this file is in root directory
-    objname,objtype,_,objsize=dir2handle[ParentObject][objh]
-    #stat=os.stat(fullpath)
+    objname,objtype,_,objsize=cur_list[objh]
+    #objtype,_,_,_,_,_,objsize,_,_,_=os.stat(fullpath)
+    #objname=fullpath[fullpath.rfind("/")+1:]
     #objname=basename(objh)
-    #if handle2path[objh][-1]=="/":
+    #if fullpath[-1]=="/": # dir
     if objtype==VFS_DIR: # dir
       ObjectFormat=PTP_OFC_Directory
       ObjectSize=0
@@ -592,8 +658,8 @@ def GetObjectInfo(cnt,code): # 0x1008
 def GetObject(cnt,code): # 0x1009
   global txid,remain_getobj_len,fd
   txid=hdr.txid
-  if hdr.p1 in handle2path:
-    fullpath=handle2path[hdr.p1]
+  if hdr.p1 in oh2path:
+    fullpath=oh2path[hdr.p1]
     print(fullpath)
     fd=open(fullpath,"rb")
     filesize=fd.seek(0,2)
@@ -611,22 +677,11 @@ def GetObject(cnt,code): # 0x1009
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
 def DeleteObject(cnt,code): # 0x100B
-  h=hdr.p1
-  p=parent(h) # parent dir where to delete
-  parent_path=handle2path[p]
-  #print("deleting p=",p,"h=",h)
-  #print("parent path",parent_path)
-  objname=basename(h)
-  objtype=dir2handle[p][h][1]
-  fullpath=handle2path[h]
-  os.unlink(fullpath)
-  del(dir2handle[p][h])
-  del(handle2path[h])
-  if objtype==VFS_DIR: # dir
-    del(path2handle[parent_path+objname+"/"])
-    del(path2handle[parent_path][objname+"/"])
-  else: # objtype==VFS_FILE: # file
-    del(path2handle[parent_path][objname])
+  fullpath=oh2path[hdr.p1]
+  del(oh2path[hdr.p1])
+  if hdr.p1 in cur_list:
+    del(cur_list[hdr.p1])
+  del(path2oh[fullpath])
   print("deleted",fullpath)
   in_hdr_ok()
 
@@ -644,7 +699,7 @@ def SendObjectInfo(cnt,code): # 0x100C
     if send_parent==0xffffffff:
       send_parent=0
     #print("send_parent: 0x%x" % send_parent)
-    send_parent_path=handle2path[send_parent]
+    send_parent_path=oh2path[send_parent]
     #print("send dir path",send_parent_path)
     # prepare full buffer to read from host again
     # host will send another OUT
@@ -660,31 +715,30 @@ def SendObjectInfo(cnt,code): # 0x100C
     #send_length,=struct.unpack("<L", cnt[20:24])
     send_length=hdr.p3
     #print("send length:", send_length)
-    send_fullpath=handle2path[send_parent]+str_send_name
+    send_fullpath=oh2path[send_parent]+str_send_name
     #print("fullpath",send_fullpath)
-    if str_send_name in path2handle[send_parent_path]:
-      current_send_handle=path2handle[send_parent_path][str_send_name]
-      # TODO update length after send has finished
-      old_d2h=dir2handle[send_parent][current_send_handle]
-      # ls() will refresh dir2handle
-      dir2handle[send_parent][current_send_handle]=old_d2h[:-1]+(send_length,)
+    if send_fullpath in path2oh:
+      current_send_handle=path2oh[send_fullpath]
     else:
-      next_handle+=1
       current_send_handle=next_handle
-      str_send_name_p2h=str_send_name
+      next_handle+=1
+      #str_send_name_p2h=str_send_name
       send_fullpath_h2p=send_fullpath
-      if send_objtype==PTP_OFC_Directory: # dir
-        str_send_name_p2h+="/"
+      vfstype=VFS_FILE
+      if send_objtype==PTP_OFC_Directory: # new dir
+        vfstype=VFS_DIR
+        #str_send_name_p2h+="/"
         send_fullpath_h2p+="/"
-        path2handle[send_fullpath_h2p]={0:current_send_handle}
-        dir2handle[current_send_handle]={}
         os.mkdir(send_fullpath)
-      path2handle[send_parent_path][str_send_name_p2h]=current_send_handle
-      handle2path[current_send_handle]=send_fullpath_h2p
+      path2oh[send_fullpath_h2p]=current_send_handle
+      oh2path[current_send_handle]=send_fullpath_h2p
+      cur_list[current_send_handle]=(str_send_name,vfstype,0,send_length)
+      #path2handle[send_parent_path][str_send_name_p2h]=current_send_handle
+      #handle2path[current_send_handle]=send_fullpath_h2p
     vfs_objtype=VFS_FILE # default is file
     if send_objtype==PTP_OFC_Directory:
       vfs_objtype=VFS_DIR # directory
-    dir2handle[send_parent][current_send_handle]=(str_send_name,vfs_objtype,0,send_length)
+    #dir2handle[send_parent][current_send_handle]=(str_send_name,vfs_objtype,0,send_length)
     #print("current send handle",current_send_handle)
     # send OK response to host
     hdr_ok()
@@ -749,29 +803,17 @@ def CloseSession(cnt,code): # 0x1007
 # upper 16-bits are same as upper 16 bits storage id
 # more in libgphoto2 ptp.h and ptp.c
 ptp_opcode_cb = {
-  0x11001:GetDeviceInfo,
-  0x11002:OpenSession,
-  0x11003:CloseSession,
-  0x11004:GetStorageIDs,
-  0x11005:GetStorageInfo,
-  0x11007:GetObjectHandles,
-  0x11008:GetObjectInfo,
-  0x11009:GetObject,
-  0x1100B:DeleteObject,
-  0x1100C:SendObjectInfo,
-  0x1100D:SendObject,
-  # second storage, the same callbacks
-  0x21001:GetDeviceInfo,
-  0x21002:OpenSession,
-  0x21003:CloseSession,
-  0x21004:GetStorageIDs,
-  0x21005:GetStorageInfo,
-  0x21007:GetObjectHandles,
-  0x21008:GetObjectInfo,
-  0x21009:GetObject,
-  0x2100B:DeleteObject,
-  0x2100C:SendObjectInfo,
-  0x2100D:SendObject,
+  0x1001:GetDeviceInfo,
+  0x1002:OpenSession,
+  0x1003:CloseSession,
+  0x1004:GetStorageIDs,
+  0x1005:GetStorageInfo,
+  0x1007:GetObjectHandles,
+  0x1008:GetObjectInfo,
+  0x1009:GetObject,
+  0x100B:DeleteObject,
+  0x100C:SendObjectInfo,
+  0x100D:SendObject,
 }
 
 # EP0 control requests handlers
@@ -847,7 +889,8 @@ def ep1_out_done(result, xferred_bytes):
     # with lower 16-bit of header code to
     # select the callback
     # TODO simple support for multiple storages
-    mix_code=(current_storid&0xFFFF0000)|hdr.code
+    #mix_code=(current_storid&0xFFFF0000)|hdr.code
+    mix_code=hdr.code
     print("0x%04x %s" % (mix_code,ptp_opcode_cb[mix_code].__name__))
     print("<",end="")
     print_hex(i0_usbd_buf[:xferred_bytes])
