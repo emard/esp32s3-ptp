@@ -50,12 +50,11 @@ CONFIGURATION=b"iConfiguration"
 INTERFACE0=b"iInterface0" # libgphoto2
 INTERFACE1=b"iInterface1"
 VERSION=b"3.1.8"
-STORAGE={0x10001:b"vfs", 0x20002:b"custom"}
+STORID_VFS=const(0x10001) # micropython VFS
+STORID_CUSTOM=const(0x20002) # custom for FPGA
+STORAGE={STORID_VFS:b"vfs", STORID_CUSTOM:b"custom"}
 VOLUME=b"iVolume"
 
-STORID=[0x10001,0x20002] # lower and upper 16-bit the same
-STORID_VFS=0x10001 # micropython VFS
-STORID_CUSTOM=0x20002 # custom for FPGA
 current_storid=STORID_VFS # must choose one
 # PTP
 # USB Still Image Capture Class defines
@@ -207,6 +206,12 @@ cur_list={}
 # object id of current parent directory
 cur_parent=0
 
+# strip 1 directory level from
+# left slide (first level after root)
+# skip storage name so "/vfs/" becomes "/"
+def strip1dirlvl(path:str)->str:
+  return path[path.find("/",1):]
+
 # list directory items
 # update internal cache path -> object id
 # cache obtained list of objects for later use
@@ -215,7 +220,7 @@ cur_parent=0
 def ls(path:str):
   global next_handle,cur_parent,cur_list
   try:
-    dir=os.ilistdir(path)
+    dir=os.ilistdir(strip1dirlvl(path))
   except:
     return
   if path in path2oh:
@@ -248,6 +253,7 @@ def parent(oh:int)->int:
   path=oh2path[oh]
   pp=path[:path[:-1].rfind("/")+1]
   return path2oh[pp]
+
 
 # USB PTP "type" 16-bit field
 PTP_USB_CONTAINER_UNDEFINED=const(0)
@@ -445,7 +451,7 @@ def GetDeviceInfo(cnt,code): # 0x1001
   in_hdr_data(data)
 
 def GetStorageIDs(cnt,code): # 0x1004
-  data=uint32_array(STORID)
+  data=uint32_array(STORAGE)
   respond_ok()
   in_hdr_data(data)
 
@@ -505,7 +511,7 @@ def GetObjectHandles(cnt,code): # 0x1007
   if dirhandle==0xFFFFFFFF: # root directory
     dirhandle=0
   if dirhandle==0:
-    ls("/")
+    ls("/vfs/")
   else:
     ls(oh2path[dirhandle])
   data=uint32_array(cur_list)
@@ -577,7 +583,7 @@ def GetObject(cnt,code): # 0x1009
   if hdr.p1 in oh2path:
     fullpath=oh2path[hdr.p1]
     print(fullpath)
-    fd=open(fullpath,"rb")
+    fd=open(strip1dirlvl(fullpath),"rb")
     filesize=fd.seek(0,2)
     fd.seek(0)
     # file data after 12-byte header
@@ -598,6 +604,7 @@ def DeleteObject(cnt,code): # 0x100B
   if hdr.p1 in cur_list:
     del(cur_list[hdr.p1])
   del(path2oh[fullpath])
+  os.unlink(strip1dirlvl(fullpath))
   print("deleted",fullpath)
   in_hdr_ok()
 
@@ -645,7 +652,7 @@ def SendObjectInfo(cnt,code): # 0x100C
         vfstype=VFS_DIR
         #str_send_name_p2h+="/"
         send_fullpath_h2p+="/"
-        os.mkdir(send_fullpath)
+        os.mkdir(strip1dirlvl(send_fullpath))
       path2oh[send_fullpath_h2p]=current_send_handle
       oh2path[current_send_handle]=send_fullpath_h2p
       cur_list[current_send_handle]=(str_send_name,vfstype,0,send_length)
@@ -686,7 +693,7 @@ def SendObject(cnt,code): # 0x100D
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
     #ecp5.prog_open()
-    fd=open(send_fullpath,"wb")
+    fd=open(strip1dirlvl(send_fullpath),"wb")
     # host will send another OUT command
     # prepare full buffer to read again from host
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
