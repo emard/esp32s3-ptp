@@ -229,8 +229,8 @@ fix_custom_cur_list={
   0xc00000d1:('fpga',VFS_DIR,0,0),
   0xc00000d2:('flash',VFS_DIR,0,0),
   },
-0xc00000d1:{0xc00000f1:('fpga.bit',VFS_FILE,0,0x400000)},
-0xc00000d2:{0xc00000f2:('flash.bin',VFS_FILE,0,0x1000000)},
+0xc00000d1:{0xc00000f1:('fpga.bit',VFS_FILE,0,10)},
+0xc00000d2:{0xc00000f2:('flash.bin',VFS_FILE,0,10)},
 }
 
 # strip 1 directory level from
@@ -618,19 +618,27 @@ def GetObject(cnt,code): # 0x1009
   if hdr.p1 in oh2path:
     fullpath=oh2path[hdr.p1]
     print(fullpath)
-    fd=open(strip1dirlvl(fullpath),"rb")
-    filesize=fd.seek(0,2)
-    fd.seek(0)
-    # file data after 12-byte header
+    if fullpath.startswith("/vfs"):
+      fd=open(strip1dirlvl(fullpath),"rb")
+      filesize=fd.seek(0,2)
+      fd.seek(0)
+      len1st=fd.readinto(memoryview(i0_usbd_buf)[12:])
+      # file data after 12-byte header
+      length=12+len1st
+      remain_getobj_len=filesize-len1st
+      if remain_getobj_len<=0:
+        remain_getobj_len=0
+        fd.close()
+        respond_ok_tx(txid)
+    if fullpath.startswith("/custom"):
+      msg=b"123456789\n"
+      filesize=len(msg)
+      length=12+filesize
+      remain_getobj_len=0
+      i0_usbd_buf[12:]=msg
+      respond_ok_tx(txid)
     hdr.len=12+filesize
     hdr.type=PTP_USB_CONTAINER_DATA
-    len1st=fd.readinto(memoryview(i0_usbd_buf)[12:])
-    length=12+len1st
-    remain_getobj_len=filesize-len1st
-    if remain_getobj_len<=0:
-      remain_getobj_len=0
-      fd.close()
-      respond_ok_tx(txid)
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:length])
 
 def DeleteObject(cnt,code): # 0x100B
@@ -722,7 +730,6 @@ def irq_sendobject_complete(objecthandle):
   fd.close()
   #ecp5.prog_close()
 
-# FIXME readinto first block instead of copy
 def SendObject(cnt,code): # 0x100D
   global txid,send_length,remaining_send_length,fd
   txid=hdr.txid
