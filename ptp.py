@@ -205,6 +205,8 @@ current_send_handle=0
 # NOTE for root level objects returned
 # parent object id must be 0 in each storage
 # but we can't have both 0:"/vfs/" and 0:"/custom/"
+# ls("/vfs/") will overwrite oh2path[0]="/vfs/" but
+# path2oh["/custom/"]=0 will remain
 oh2path={
 0:"/custom/",
 0xc00000d1:"/custom/fpga/",
