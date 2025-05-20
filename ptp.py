@@ -192,19 +192,44 @@ fd=None # local open file descriptor
 
 # for ls() generating vfs directory tree
 # global handle incremented
+# next handle must start for 0 to assign
+# root with 0. if next_handle!=0 vfs will
+# appear as empty
 next_handle=0
 current_send_handle=0
 
 # simplified structure
-# path->object handle caches every os.ilistdir object
-# {'/':0,'/lib/':1,'main.py':2,'/lib/test.py':3}
-path2oh={}
-oh2path={}
-# current list example
+# object handle->path and path->object handle
+# caches for every os.ilistdir object
+# pre-filled with custom fs items
+# NOTE for root level objects returned
+# parent object id must be 0 in each storage
+# but we can't have both 0:"/vfs/" and 0:"/custom/"
+oh2path={
+0:"/custom/",
+0xc00000d1:"/custom/fpga/",
+0xc00000d2:"/custom/flash/",
+0xc00000f1:"/custom/fpga/fpga.bit",
+0xc00000f2:"/custom/flash/flash.bin",
+}
+# path2oh is reverse of oh2path, only file names
+path2oh={v:k for k,v in oh2path.items()}
+
+# current ilistdir, pre-filled with custom fs
 # { 1:('main.py',32768,0,123), 2:('lib',16384,0,0), }
 cur_list={}
 # object id of current parent directory
 cur_parent=0
+
+# fuxed custom ilistdir, pre-filled with custom fs
+fix_custom_cur_list={
+0:{
+  0xc00000d1:('fpga',VFS_DIR,0,0),
+  0xc00000d2:('flash',VFS_DIR,0,0),
+  },
+0xc00000d1:{0xc00000f1:('fpga.bit',VFS_FILE,0,0x400000)},
+0xc00000d2:{0xc00000f2:('flash.bin',VFS_FILE,0,0x1000000)},
+}
 
 # strip 1 directory level from
 # left slide (first level after root)
@@ -499,9 +524,10 @@ def GetStorageInfo(cnt,code): # 0x1005
 # for given handle id of a directory
 # returns array of handles
 def GetObjectHandles(cnt,code): # 0x1007
+  global cur_list
   storageid=hdr.p1
   print("storageid 0x%08x" % storageid)
-  if storageid==0xFFFFFFFF or storageid==STORID_CUSTOM:
+  if storageid==0xFFFFFFFF:
     # return empty storage
     respond_ok()
     data=uint32_array([])
@@ -510,10 +536,13 @@ def GetObjectHandles(cnt,code): # 0x1007
   dirhandle=hdr.p3
   if dirhandle==0xFFFFFFFF: # root directory
     dirhandle=0
-  if dirhandle==0:
-    ls("/vfs/")
-  else:
-    ls(oh2path[dirhandle])
+  if storageid==STORID_VFS:
+    if dirhandle==0:
+      ls("/vfs/")
+    else:
+      ls(oh2path[dirhandle])
+  if storageid==STORID_CUSTOM:
+    cur_list=fix_custom_cur_list[dirhandle]
   data=uint32_array(cur_list)
   # FIXME when directory has many entries > 256 data
   # would not fit in one 1024 byte block
@@ -542,7 +571,6 @@ def GetObjectHandles(cnt,code): # 0x1007
 def GetObjectInfo(cnt,code): # 0x1008
   objh=hdr.p1
   #print("objh=%08x" % objh)
-  StorageID=STORID_VFS
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0
   thumb_image_null=bytearray(26)
@@ -551,7 +579,12 @@ def GetObjectInfo(cnt,code): # 0x1008
     fullpath=oh2path[objh]
     print(fullpath)
     ParentObject=parent(objh) # 0 means this file is in root directory
-    objname,objtype,_,objsize=cur_list[objh]
+    if objh>>28: # member of custom fs
+      StorageID=STORID_CUSTOM
+      objname,objtype,_,objsize=fix_custom_cur_list[ParentObject][objh]
+    else: # vfs
+      StorageID=STORID_VFS
+      objname,objtype,_,objsize=cur_list[objh]
     #objtype,_,_,_,_,_,objsize,_,_,_=os.stat(fullpath)
     #objname=fullpath[fullpath.rfind("/")+1:]
     #objname=basename(objh)
