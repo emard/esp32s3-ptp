@@ -209,10 +209,10 @@ current_send_handle=0
 # path2oh["/custom/"]=0 will remain
 oh2path={
 0:"/custom/",
-0xc00000d1:"/custom/fpga/",
-0xc00000d2:"/custom/flash/",
-0xc00000f1:"/custom/fpga/fpga.bit",
-0xc00000f2:"/custom/flash/flash.bin",
+0xc10000d1:"/custom/fpga/",
+0xc10000f1:"/custom/fpga/fpga.bit",
+0xc20000d2:"/custom/flash/",
+0xc20000f2:"/custom/flash/flash.bin",
 }
 # path2oh is reverse of oh2path, only file names
 path2oh={v:k for k,v in oh2path.items()}
@@ -226,11 +226,11 @@ cur_parent=0
 # fuxed custom ilistdir, pre-filled with custom fs
 fix_custom_cur_list={
 0:{
-  0xc00000d1:('fpga',VFS_DIR,0,0),
-  0xc00000d2:('flash',VFS_DIR,0,0),
+  0xc10000d1:('fpga',VFS_DIR,0,0),
+  0xc20000d2:('flash',VFS_DIR,0,0),
   },
-0xc00000d1:{0xc00000f1:('fpga.bit',VFS_FILE,0,10)},
-0xc00000d2:{0xc00000f2:('flash.bin',VFS_FILE,0,10)},
+0xc10000d1:{0xc10000f1:('fpga.bit',VFS_FILE,0,10)},
+0xc20000d2:{0xc20000f2:('flash.bin',VFS_FILE,0,10)},
 }
 
 # strip 1 directory level from
@@ -584,7 +584,7 @@ def GetObjectInfo(cnt,code): # 0x1008
     if objh>>28: # member of custom fs
       StorageID=STORID_CUSTOM
       objname,objtype,_,objsize=fix_custom_cur_list[ParentObject][objh]
-    else: # vfs
+    else: # high nibble=0 vfs
       StorageID=STORID_VFS
       objname,objtype,_,objsize=cur_list[objh]
     #objtype,_,_,_,_,_,objsize,_,_,_=os.stat(fullpath)
@@ -647,7 +647,8 @@ def DeleteObject(cnt,code): # 0x100B
   if hdr.p1 in cur_list:
     del(cur_list[hdr.p1])
   del(path2oh[fullpath])
-  os.unlink(strip1dirlvl(fullpath))
+  if hdr.p1>>28==0: # VFS
+    os.unlink(strip1dirlvl(fullpath))
   print("deleted",fullpath)
   in_hdr_ok()
 
@@ -674,7 +675,7 @@ def SendObjectInfo(cnt,code): # 0x100C
     # we just have received data from host
     # host sends in advance file length to be sent
     send_objtype=hdr.h2
-    #print("send objtype 0x%04x" % send_objtype)
+    print("send objtype 0x%04x" % send_objtype)
     send_name=get_ucs2_string(cnt[64:])
     str_send_name=decode_ucs2_string(send_name)[:-1].decode()
     #print("send name:", str_send_name)
@@ -686,7 +687,10 @@ def SendObjectInfo(cnt,code): # 0x100C
     if send_fullpath in path2oh:
       current_send_handle=path2oh[send_fullpath]
     else:
-      current_send_handle=next_handle
+      # HACK copy parent's upper byte, used for custom fs
+      # for objects to keep parent membership encoded in
+      # 32-bit handle id
+      current_send_handle=next_handle|(send_parent&0xFF000000)
       next_handle+=1
       #str_send_name_p2h=str_send_name
       send_fullpath_h2p=send_fullpath
@@ -698,7 +702,14 @@ def SendObjectInfo(cnt,code): # 0x100C
         os.mkdir(strip1dirlvl(send_fullpath))
       path2oh[send_fullpath_h2p]=current_send_handle
       oh2path[current_send_handle]=send_fullpath_h2p
-      cur_list[current_send_handle]=(str_send_name,vfstype,0,send_length)
+      if current_send_handle>>28: # !=0 custom
+        if current_send_handle>>24==0xc1:
+          custom_parent=0xc10000d1
+        if current_send_handle>>24==0xc2:
+          custom_parent=0xc20000d2
+        fix_custom_cur_list[custom_parent][current_send_handle]=(str_send_name,vfstype,0,send_length)
+      else: # ==0 vfs
+        cur_list[current_send_handle]=(str_send_name,vfstype,0,send_length)
       #path2handle[send_parent_path][str_send_name_p2h]=current_send_handle
       #handle2path[current_send_handle]=send_fullpath_h2p
     vfs_objtype=VFS_FILE # default is file
@@ -727,15 +738,25 @@ def irq_sendobject_complete(objecthandle):
   #print("irq>",end="")
   #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:hdr.len])
-  fd.close()
-  #ecp5.prog_close()
+  if send_parent>>24==0xc1: # fpga
+    #ecp5.prog_close()
+    pass
+  elif send_parent>>24==0xc2: # flash
+    pass
+  else:
+    fd.close()
 
 def SendObject(cnt,code): # 0x100D
   global txid,send_length,remaining_send_length,fd
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
-    #ecp5.prog_open()
-    fd=open(strip1dirlvl(send_fullpath),"wb")
+    if send_parent>>24==0xc1: # fpga
+      #ecp5.prog_open()
+      pass
+    elif send_parent>>24==0xc2: # flash
+      pass
+    else:
+      fd=open(strip1dirlvl(send_fullpath),"wb")
     # host will send another OUT command
     # prepare full buffer to read again from host
     usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
@@ -743,8 +764,13 @@ def SendObject(cnt,code): # 0x100D
     # host has just sent data
     # 12 bytes header, rest is payload
     if send_length>0:
-      #ecp5.hwspi.write(cnt[12:])
-      fd.write(cnt[12:])
+      if send_parent>>24==0xc1: # fpga
+        #ecp5.hwspi.write(cnt[12:])
+        pass
+      elif send_parent>>24==0xc2: # flash
+        pass
+      else:
+        fd.write(cnt[12:])
       remaining_send_length=send_length-(len(cnt)-12)
       send_length=0
     #print("send_length=",send_length,"remain=",remaining_send_length)
@@ -837,8 +863,11 @@ def ep1_out_done(result, xferred_bytes):
   global remaining_send_length,fd
   if remaining_send_length>0:
     # continue receiving parts of the file
-    #ecp5.hwspi.write(cnt)
-    fd.write(i0_usbd_buf[:xferred_bytes])
+    if send_parent>>24==0xc1:
+      #ecp5.hwspi.write(cnt)
+      pass
+    else:
+      fd.write(i0_usbd_buf[:xferred_bytes])
     remaining_send_length-=xferred_bytes
     #print_hexdump(cnt)
     #print("<len(cnt)=",xferred_bytes,"remaining_send_length=", remaining_send_length)
@@ -850,16 +879,10 @@ def ep1_out_done(result, xferred_bytes):
       # signal to host we have received entire file
       irq_sendobject_complete(current_send_handle)
   else:
-    # combine upper 16-bit of storage id
-    # with lower 16-bit of header code to
-    # select the callback
-    # TODO simple support for multiple storages
-    #mix_code=(current_storid&0xFFFF0000)|hdr.code
-    mix_code=hdr.code
-    print("0x%04x %s" % (mix_code,ptp_opcode_cb[mix_code].__name__))
+    print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
     print("<",end="")
     print_hex(i0_usbd_buf[:xferred_bytes])
-    ptp_opcode_cb[mix_code](i0_usbd_buf[:xferred_bytes],mix_code)
+    ptp_opcode_cb[hdr.code](i0_usbd_buf[:xferred_bytes],hdr.code)
 
 def ep1_in_done(result, xferred_bytes):
   global remain_getobj_len,fd
@@ -872,6 +895,7 @@ def ep1_in_done(result, xferred_bytes):
   else:
     if remain_getobj_len:
       #print("remain_getobj_len",remain_getobj_len)
+      # TODO flash reading
       packet_len=fd.readinto(i0_usbd_buf)
       remain_getobj_len-=packet_len
       if remain_getobj_len<=0:
