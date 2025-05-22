@@ -659,7 +659,7 @@ def SendObjectInfo(cnt,code): # 0x100C
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
     storageid=hdr.p1
-    print("storageid 0x%08x" % storageid)
+    #print("storageid 0x%08x" % storageid)
     current_storid=storageid
     #send_parent,=struct.unpack("<L",cnt[16:20])
     send_parent=hdr.p2
@@ -675,7 +675,7 @@ def SendObjectInfo(cnt,code): # 0x100C
     # we just have received data from host
     # host sends in advance file length to be sent
     send_objtype=hdr.h2
-    print("send objtype 0x%04x" % send_objtype)
+    #print("send objtype 0x%04x" % send_objtype)
     send_name=get_ucs2_string(cnt[64:])
     str_send_name=decode_ucs2_string(send_name)[:-1].decode()
     #print("send name:", str_send_name)
@@ -688,8 +688,8 @@ def SendObjectInfo(cnt,code): # 0x100C
       current_send_handle=path2oh[send_fullpath]
     else:
       # HACK copy parent's upper byte, used for custom fs
-      # for objects to keep parent membership encoded in
-      # 32-bit handle id
+      # for objects to keep bits 31:24 of parent id in
+      # bits 31:24 of new handle id
       current_send_handle=next_handle|(send_parent&0xFF000000)
       next_handle+=1
       #str_send_name_p2h=str_send_name
@@ -703,11 +703,7 @@ def SendObjectInfo(cnt,code): # 0x100C
       path2oh[send_fullpath_h2p]=current_send_handle
       oh2path[current_send_handle]=send_fullpath_h2p
       if current_send_handle>>28: # !=0 custom
-        if current_send_handle>>24==0xc1:
-          custom_parent=0xc10000d1
-        if current_send_handle>>24==0xc2:
-          custom_parent=0xc20000d2
-        fix_custom_cur_list[custom_parent][current_send_handle]=(str_send_name,vfstype,0,send_length)
+        fix_custom_cur_list[send_parent][current_send_handle]=(str_send_name,vfstype,0,send_length)
       else: # ==0 vfs
         cur_list[current_send_handle]=(str_send_name,vfstype,0,send_length)
       #path2handle[send_parent_path][str_send_name_p2h]=current_send_handle
