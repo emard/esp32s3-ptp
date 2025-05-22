@@ -256,7 +256,7 @@ def ls(path:str):
     cur_parent=next_handle
     next_handle+=1
     path2oh[path]=cur_parent
-    oh2path[cur_parent]=path    
+    oh2path[cur_parent]=path
   cur_list={}
   for obj in dir:
     if obj[1]==VFS_FILE:
