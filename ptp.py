@@ -24,7 +24,7 @@
 # The device will then change to the custom USB device.
 
 import machine, struct, time, os, uctypes
-#import ecp5
+import ecp5
 from micropython import const
 
 # to avoid loading ftdi_sio
@@ -735,8 +735,7 @@ def irq_sendobject_complete(objecthandle):
   #print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:hdr.len])
   if send_parent>>24==0xc1: # fpga
-    #ecp5.prog_close()
-    pass
+    ecp5.prog_close()
   elif send_parent>>24==0xc2: # flash
     pass
   else:
@@ -747,8 +746,7 @@ def SendObject(cnt,code): # 0x100D
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
     if send_parent>>24==0xc1: # fpga
-      #ecp5.prog_open()
-      pass
+      ecp5.prog_open()
     elif send_parent>>24==0xc2: # flash
       pass
     else:
@@ -761,8 +759,7 @@ def SendObject(cnt,code): # 0x100D
     # 12 bytes header, rest is payload
     if send_length>0:
       if send_parent>>24==0xc1: # fpga
-        #ecp5.hwspi.write(cnt[12:])
-        pass
+        ecp5.hwspi.write(cnt[12:])
       elif send_parent>>24==0xc2: # flash
         pass
       else:
@@ -860,7 +857,8 @@ def ep1_out_done(result, xferred_bytes):
   if remaining_send_length>0:
     # continue receiving parts of the file
     if send_parent>>24==0xc1:
-      #ecp5.hwspi.write(cnt)
+      ecp5.hwspi.write(i0_usbd_buf)
+    elif send_parent>>24==0xc2:
       pass
     else:
       fd.write(i0_usbd_buf[:xferred_bytes])
