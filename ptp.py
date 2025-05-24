@@ -635,7 +635,7 @@ def GetObject(cnt,code): # 0x1009
       filesize=len(msg)
       length=12+filesize
       remain_getobj_len=0
-      i0_usbd_buf[12:]=msg
+      memoryview(i0_usbd_buf)[12:12+len(msg)]=msg
       respond_ok_tx(txid)
     hdr.len=12+filesize
     hdr.type=PTP_USB_CONTAINER_DATA
@@ -898,7 +898,7 @@ def ep1_in_done(result, xferred_bytes):
         respond_ok_tx(txid) # after this send ok IN response
       #print(">",end="")
       #print_hexdump(i0_usbd_buf[:packet_len])
-      usbd.submit_xfer(I0_EP1_IN, i0_usbd_buf[:packet_len])
+      usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:packet_len])
     else:
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
 
