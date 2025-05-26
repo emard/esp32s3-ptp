@@ -7,8 +7,16 @@ to the host. Filesystem is not block based like FAT so it doesn't need some
 
 # Linux
 
-Opens the filesystem in file browser window.
-it appears like an USB stick.
+Open Gnome file browser "nautilus" by clicking
+on blue drawer icon. PTP device should appear
+on the left side of the window.
+
+If PTP device doesn't appear, maybe "gvfs"
+should be installed. Then click again
+on blue drawer icon.
+
+    apt install gvfs
+    pkill gvfs; pkill nautilus
 
 For commandline and scripting it is useful
 to know that when user is logged to gnome,
