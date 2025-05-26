@@ -75,8 +75,8 @@ STILL_IMAGE_GET_DEV_STATUS=const(0x67)
 _desc_dev = bytes([
 0x12,  # 0 bLength
 0x01,  # 1 bDescriptorType: Device
-0x00,  # 2
-0x02,  # 3 USB version: 2.00
+0x10,  # 2
+0x01,  # 3 USB version: 2.00
 0x00,  # 4 bDeviceClass: defined at interface level
 0x00,  # 5 bDeviceSubClass
 0x00,  # 6 bDeviceProtocol
