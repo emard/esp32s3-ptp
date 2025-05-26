@@ -30,12 +30,12 @@ by commandline "gphoto2".
 From gphoto commandline overwriting a file "F1.TXT".
 
     gphoto2 --shell
-    cd /storage_00010001/D1
+    cd /store_00010001/D1
     ls
     F1.TXT   F2.TXT
     get F1.TXT
     ok
-    put /storage_00010001/DIR/F1.TXT
+    put /store_00010001/DIR/F1.TXT
 
 Note the strange "put" argument. File "F1.TXT" is in
 current directory, because it has just been obtained by "get".
