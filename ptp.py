@@ -1,8 +1,7 @@
 # esp32s3 micropython >= 1.24
 
 # file browser using USB PTP protocol
-# tested on linux gnome and windows 10
-# apple almost works with MTP
+# tested on linux gnome, windows 10, apple
 
 # protocol info:
 # https://github.com/gphoto/libgphoto2/tree/master/camlibs/ptp2
@@ -573,7 +572,6 @@ def GetObjectInfo(cnt): # 0x1008
   assoc_seq_null=bytearray(10)
   if objh in oh2path:
     fullpath=oh2path[objh]
-    print(fullpath)
     ParentObject=parent(objh) # 0 means this file is in root directory
     if objh>>28: # member of custom fs
       StorageID=STORID_CUSTOM
@@ -872,7 +870,7 @@ def _open_itf_cb(interface_desc_view):
   # Prepare to receive first data packet on the OUT endpoint.
   if interface_desc_view[11] == I0_EP1_IN:
     usbd.submit_xfer(I0_EP1_OUT,i0_usbd_buf)
-  print("_open_itf_cb", bytes(interface_desc_view))
+  #print("_open_itf_cb", bytes(interface_desc_view))
 
 def ep1_out_done(result, xferred_bytes):
   global remaining_send_length,addr,fd
@@ -906,7 +904,7 @@ def ep1_out_done(result, xferred_bytes):
       else:
         in_ok_sendobject()
   else:
-    print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
+    #print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
     #print("<",end="")
     #print_hex(i0_usbd_buf[:xferred_bytes])
     ptp_opcode_cb[hdr.code](i0_usbd_buf[:xferred_bytes])
@@ -947,14 +945,6 @@ ep_addr_cb = {
 
 def _xfer_cb(ep_addr,result,xferred_bytes):
   ep_addr_cb[ep_addr](result,xferred_bytes)
-
-# from "/" create handle tree,
-# recurse n dirs deep
-# lazy browsing to save memory
-# intialy do not fetch full tree
-# but only the root. Browsing
-# later will fetch subdirs on-demand
-#ls("/",0)
 
 # Switch the USB device to our custom USB driver.
 usbd = machine.USBDevice()
