@@ -59,7 +59,8 @@ linux skips storage name and displays root folder.
 
 # Apple
 
-Early support, set interface to MTP mode:
+Early support tested on Sonoma 14.4.
+Set interface to MTP mode:
 
     INTERFACE0=b"MTP" # libmtp, windows and apple
 
