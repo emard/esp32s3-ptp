@@ -59,7 +59,15 @@ linux skips storage name and displays root folder.
 
 # Apple
 
-Not yet tested
+Early support, set interface to MTP mode:
+
+    INTERFACE0=b"MTP" # libmtp, windows and apple
+
+After plugging device to USB port a window should
+appear with vfs file list and tabs for storages
+"vfs" and "custom" in top area of the window.
+
+If protocol freezes then we have some bugs...
 
 # MTP mode
 
