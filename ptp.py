@@ -57,6 +57,9 @@ STORID_VFS=const(0x10001) # micropython VFS
 STORID_CUSTOM=const(0x20002) # custom for FPGA
 STORAGE={STORID_VFS:b"vfs", STORID_CUSTOM:b"custom"}
 
+EVENT_OBJECTINFO_CHANGED=False # All
+#EVENT_OBJECTINFO_CHANGED=True # Windows and Linux, but not Apple
+
 current_storid=STORID_VFS # must choose one
 # PTP
 # USB Still Image Capture Class defines
@@ -370,6 +373,16 @@ def hdr_ok():
 
 def in_hdr_ok():
   hdr_ok()
+  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+
+def in_ok_sendobject():
+  hdr.len=24
+  hdr.type=PTP_USB_CONTAINER_RESPONSE
+  hdr.code=PTP_RC_OK
+  hdr.txid=txid
+  hdr.p1=current_storid
+  hdr.p2=send_parent
+  hdr.p3=current_send_handle
   usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
 # after one IN submit another with response OK
@@ -715,6 +728,8 @@ def irq_sendobject_complete():
   print("irq>",end="")
   print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:hdr.len])
+
+def close_sendobject():
   if send_parent>>24==0xc1: # fpga
     ecp5.prog_close()
   elif send_parent>>24==0xc2: # flash
@@ -769,7 +784,11 @@ def SendObject(cnt): # 0x100D
       # send irq, after irq reply OK to host
       #print(">",end="")
       #print_hex(i0_usbd_buf[:length])
-      irq_sendobject_complete()
+      close_sendobject()
+      if EVENT_OBJECTINFO_CHANGED:
+        irq_sendobject_complete()
+      else:
+        in_ok_sendobject()
     else:
       # host will send another OUT command
       # prepare full buffer to read again from host
@@ -881,7 +900,11 @@ def ep1_out_done(result, xferred_bytes):
         usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
     else:
       # signal to host we have received entire file
-      irq_sendobject_complete()
+      close_sendobject()
+      if EVENT_OBJECTINFO_CHANGED:
+        irq_sendobject_complete()
+      else:
+        in_ok_sendobject()
   else:
     print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
     #print("<",end="")
@@ -914,14 +937,7 @@ def ep1_in_done(result, xferred_bytes):
 
 def ep2_in_done(result, xferred_bytes):
   # after IRQ data being sent, reply OK to host
-  hdr.len=24
-  hdr.type=PTP_USB_CONTAINER_RESPONSE
-  hdr.code=PTP_RC_OK
-  hdr.txid=txid
-  hdr.p1=current_storid
-  hdr.p2=send_parent
-  hdr.p3=current_send_handle
-  usbd.submit_xfer(I0_EP1_IN,memoryview(i0_usbd_buf)[:hdr.len])
+  in_ok_sendobject()
 
 ep_addr_cb = {
   I0_EP1_OUT:ep1_out_done,
