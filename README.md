@@ -106,13 +106,13 @@ Terminate all gvfs daemons and the client application you use (e.g. Nautilus) at
     pkill gvfs; pkill nautilus
 
 (Be careful, this step will terminate also your pending file operations.)
-Start main daemon with enabled debug output:
+Start main daemon with enabled debug level 9 output:
 
-    GVFS_DEBUG=1 $(find /usr/lib* -name gvfsd 2>/dev/null) --replace 2>&1 | tee gvfsd.log
+    GVFS_DEBUG=9 $(find /usr/lib* -name gvfsd 2>/dev/null) --replace 2>&1 | tee gvfsd.log
 
 You can use additional environment variables in special cases, e.g.:
 
-    GVFS_SMB_DEBUG=10 GVFS_DEBUG=1 $(find /usr/lib* -name gvfsd 2>/dev/null) --replace 2>&1 | tee gvfsd.log
+    GVFS_SMB_DEBUG=10 GVFS_DEBUG=9 $(find /usr/lib* -name gvfsd 2>/dev/null) --replace 2>&1 | tee gvfsd.log
 
 Reproduce your problem.
 Terminate gvfs daemons after that.
