@@ -2,6 +2,7 @@
 
 # file browser using USB PTP protocol
 # tested on linux gnome and windows 10
+# apple almost works with MTP
 
 # protocol info:
 # https://github.com/gphoto/libgphoto2/tree/master/camlibs/ptp2
@@ -42,20 +43,19 @@ I0_EP2_IN=const(0x82)
 # device textual appearance
 MANUFACTURER=b"iManufacturer"
 PRODUCT=b"iProduct"
-SERIAL=b"iSerial"
+SERIAL=b"00000000"
 CONFIGURATION=b"iConfiguration"
 # if interface is named "MTP" then host will
 # use MTP protocol.
 # Any other name will make it use PTP protocol.
 # currently MTP file read doesn't work in linux
-#INTERFACE0=b"MTP" # libmtp
-INTERFACE0=b"iInterface0" # libgphoto2
+#INTERFACE0=b"MTP" # libmtp, windows and apple
+INTERFACE0=b"iInterface0" # libgphoto2, windows and linux
 INTERFACE1=b"iInterface1"
 VERSION=b"3.1.8"
 STORID_VFS=const(0x10001) # micropython VFS
 STORID_CUSTOM=const(0x20002) # custom for FPGA
 STORAGE={STORID_VFS:b"vfs", STORID_CUSTOM:b"custom"}
-VOLUME=b"iVolume"
 
 current_storid=STORID_VFS # must choose one
 # PTP
@@ -458,9 +458,11 @@ def GetDeviceInfo(cnt): # 0x1001
   functional_mode=struct.pack("<H", 0) # 0: standard mode
   # unique lower 16-bit keys from ptp_opcode_cb.keys()
   #operations=uint16_array(set([code&0xFFFF for code in list((ptp_opcode_cb.keys()))])) # human readable
-  operations=uint16_array(set([code&0xFFFF for code in ptp_opcode_cb])) # short of previous line, set filters unique only
+  #operations=uint16_array(set([code&0xFFFF for code in ptp_opcode_cb])) # short of previous line, set filters unique only
+  operations=uint16_array(ptp_opcode_cb) # short of previous line, set filters unique only
   events=uint16_array((PTP_EC_ObjectInfoChanged,))
-  deviceprops=uint16_array((PTP_DPC_DateTime,))
+  #deviceprops=uint16_array((PTP_DPC_DateTime,))
+  deviceprops=uint16_array(())
   captureformats=uint16_array(())
   #captureformats=uint16_array((PTP_OFC_EXIF_JPEG,))
   imageformats=uint16_array((
@@ -520,7 +522,7 @@ def GetStorageInfo(cnt): # 0x1005
   FreeSpaceInBytes=blksize*blkfree
   FreeSpaceInImages=0x10000
   StorageDescription=ucs2_string(STORAGE[storageid])
-  VolumeLabel=ucs2_string(VOLUME)
+  VolumeLabel=StorageDescription # for Apple
   hdr1=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
   data=hdr1+StorageDescription+VolumeLabel
   respond_ok()
@@ -582,7 +584,7 @@ def GetObjectInfo(cnt): # 0x1008
   assoc_seq_null=bytearray(10)
   if objh in oh2path:
     fullpath=oh2path[objh]
-    #print(fullpath)
+    print(fullpath)
     ParentObject=parent(objh) # 0 means this file is in root directory
     if objh>>28: # member of custom fs
       StorageID=STORID_CUSTOM
@@ -728,14 +730,14 @@ def SendObjectInfo(cnt): # 0x100C
     #print_hex(i0_usbd_buf[:hdr.len])
     usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
 
-def irq_sendobject_complete(objecthandle):
+def irq_sendobject_complete():
   global fd
   hdr.len=16
   hdr.type=PTP_USB_CONTAINER_EVENT
   hdr.code=PTP_EC_ObjectInfoChanged
-  hdr.p1=objecthandle
-  #print("irq>",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
+  hdr.p1=current_send_handle
+  print("irq>",end="")
+  print_hex(i0_usbd_buf[:hdr.len])
   usbd.submit_xfer(I0_EP2_IN, memoryview(i0_usbd_buf)[:hdr.len])
   if send_parent>>24==0xc1: # fpga
     ecp5.prog_close()
@@ -791,7 +793,7 @@ def SendObject(cnt): # 0x100D
       # send irq, after irq reply OK to host
       #print(">",end="")
       #print_hex(i0_usbd_buf[:length])
-      irq_sendobject_complete(current_send_handle)
+      irq_sendobject_complete()
     else:
       # host will send another OUT command
       # prepare full buffer to read again from host
@@ -877,7 +879,7 @@ def _open_itf_cb(interface_desc_view):
   # Prepare to receive first data packet on the OUT endpoint.
   if interface_desc_view[11] == I0_EP1_IN:
     usbd.submit_xfer(I0_EP1_OUT,i0_usbd_buf)
-  #print("_open_itf_cb", bytes(interface_desc_view))
+  print("_open_itf_cb", bytes(interface_desc_view))
 
 def ep1_out_done(result, xferred_bytes):
   global remaining_send_length,addr,fd
@@ -905,9 +907,9 @@ def ep1_out_done(result, xferred_bytes):
         usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
     else:
       # signal to host we have received entire file
-      irq_sendobject_complete(current_send_handle)
+      irq_sendobject_complete()
   else:
-    #print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
+    print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
     #print("<",end="")
     #print_hex(i0_usbd_buf[:xferred_bytes])
     ptp_opcode_cb[hdr.code](i0_usbd_buf[:xferred_bytes])
@@ -937,12 +939,15 @@ def ep1_in_done(result, xferred_bytes):
       usbd.submit_xfer(I0_EP1_OUT, i0_usbd_buf)
 
 def ep2_in_done(result, xferred_bytes):
-  # after IRQ data sent reply OK to host
-  hdr_ok()
+  # after IRQ data being sent, reply OK to host
+  hdr.len=24
+  hdr.type=PTP_USB_CONTAINER_RESPONSE
+  hdr.code=PTP_RC_OK
   hdr.txid=txid
-  #print("after_irq>",end="")
-  #print_hex(i0_usbd_buf[:hdr.len])
-  usbd.submit_xfer(I0_EP1_IN, memoryview(i0_usbd_buf)[:hdr.len])
+  hdr.p1=current_storid
+  hdr.p2=send_parent
+  hdr.p3=current_send_handle
+  usbd.submit_xfer(I0_EP1_IN,memoryview(i0_usbd_buf)[:hdr.len])
 
 ep_addr_cb = {
   I0_EP1_OUT:ep1_out_done,
