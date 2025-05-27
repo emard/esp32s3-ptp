@@ -70,6 +70,10 @@ appear with vfs file list and tabs for storages
 
 If protocol freezes then we have some bugs...
 
+# Android
+
+It works in android (MTP mode currently tested).
+
 # MTP mode
 
 If USB interface is named "MTP" then this device
