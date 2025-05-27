@@ -520,7 +520,7 @@ def GetObjectHandles(cnt): # 0x1007
     cur_list=fix_custom_cur_list[dirhandle]
   data=uint32_array(cur_list)
   # FIXME when directory has many entries > 256 data
-  # would not fit in one 1024 byte block
+  # would not fit in one 4160 byte block
   # block continuation neede
   respond_ok()
   in_hdr_data(data)
@@ -544,7 +544,15 @@ def GetObjectHandles(cnt): # 0x1007
 # PTP_oi_Filename               53
 
 def GetObjectInfo(cnt): # 0x1008
-  objh=hdr.p1
+  objh=hdr.p1 # FIXME optimize code
+  # if object handle has different parent
+  # is probably not in cur_list, so
+  # update cur_list with ls(parent)
+  # FIXME for custom objects
+  this_parent=parent(objh)
+  if this_parent in oh2path:
+    if this_parent!=cur_parent:
+      ls(oh2path[this_parent])
   #print("objh=%08x" % objh)
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0 # 0:rw 1:ro
