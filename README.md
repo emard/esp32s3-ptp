@@ -18,11 +18,10 @@ on blue drawer icon.
     apt install gvfs
     pkill gvfs; pkill nautilus
 
-For commandline and scripting it is useful
-to know that when user is logged to gnome,
-then PTP is mounted here:
+For commandline and scripting:
+when user is logged to gnome, PTP is mounted here:
 
-    ls /run/user/$UID/gvfs/gphoto2\:host\=iManufacturer_iProduct_iSerial/
+    ls /run/user/$UID/gvfs/gphoto2\:host\=iManufacturer_iProduct_00000000/
 
 $UID is user ID usually starting from 1000.
 
