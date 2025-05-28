@@ -1,4 +1,4 @@
-# esp32s3 micropython >= 1.24
+# esp32s3 micropython >= 1.26
 
 # file browser using USB PTP protocol
 # tested on linux gnome, windows 10, apple
