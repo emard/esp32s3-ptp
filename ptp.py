@@ -44,10 +44,9 @@ MANUFACTURER=b"iManufacturer"
 PRODUCT=b"iProduct"
 SERIAL=b"00000000"
 CONFIGURATION=b"iConfiguration"
-# if interface is named "MTP" then host will
-# use MTP protocol.
-# Any other name will make it use PTP protocol.
-# currently MTP file read doesn't work in linux
+# if interface is named "MTP", host uses MTP protocol.
+# for any other name host uses PTP protocol.
+# linux gnome gvfs MTP BUG: file read doesn't work
 #INTERFACE0=b"MTP" # libmtp, windows and apple
 INTERFACE0=b"PTP" # libgphoto2, windows and linux
 INTERFACE1=b"iInterface1"
@@ -62,7 +61,7 @@ EVENT_OBJECTINFO_CHANGED=False # All
 current_storid=STORID_VFS # must choose one
 # PTP
 # USB Still Image Capture Class defines
-# set all 3 lines 255 to avoid system default driver
+# debug: set all to 255 to avoid system default driver
 USB_CLASS_IMAGE=const(6) # imaging
 STILL_IMAGE_SUBCLASS=const(1) # still image cam
 STILL_IMAGE_PROTOCOL=const(1) # cam
@@ -153,12 +152,12 @@ _desc_strs = {
 6: INTERFACE1,
 }
 # USB constants for bmRequestType.
-USB_REQ_RECIP_INTERFACE = 0x01
-USB_REQ_RECIP_DEVICE = 0
-USB_REQ_TYPE_CLASS = 0x20
-USB_REQ_TYPE_VENDOR = 0x40
-USB_DIR_OUT = 0x00
-USB_DIR_IN = 0x80
+USB_REQ_RECIP_INTERFACE=const(1)
+USB_REQ_RECIP_DEVICE=const(0)
+USB_REQ_TYPE_CLASS=const(0x20)
+USB_REQ_TYPE_VENDOR=const(0x40)
+USB_DIR_OUT=const(0)
+USB_DIR_IN=const(0x80)
 
 # VFS micrpython types
 VFS_DIR=const(0x4000)
@@ -178,9 +177,9 @@ CNT_HDR_DESC = {
 }
 
 # some USB CTRL commands (FIXME)
-SETSTATUS = 2
-GETSTATUS = 3
-status = bytearray([0,0,0,0,0,0])
+SETSTATUS=const(2)
+GETSTATUS=const(3)
+status=bytearray([0,0,0,0,0,0])
 
 # global PTP session ID, Transaction ID, opcode
 sesid=0
@@ -240,6 +239,28 @@ fix_custom_cur_list={
 0xc20000d2:{0xc20000f2:('flash.bin.txt',VFS_FILE,0,len(custom_txt))},
 }
 
+# USB PTP "type" 16-bit field
+PTP_USB_CONTAINER_UNDEFINED=const(0)
+PTP_USB_CONTAINER_COMMAND=const(1)
+PTP_USB_CONTAINER_DATA=const(2)
+PTP_USB_CONTAINER_RESPONSE=const(3)
+PTP_USB_CONTAINER_EVENT=const(4)
+
+# response codes, more in libgphoto2 ptp.h
+PTP_RC_OK=const(0x2001)
+#PTP_RC_GeneralError=const(0x2002)
+#PTP_RC_StoreFull=const(0x200C)
+#PTP_RC_ObjectWriteProtected=const(0x200D)
+#PTP_RC_InvalidCodeFormat=const(0x2016)
+#PTP_RC_UnknownVendorCode=const(0x2017)
+#PTP_RC_InvalidDataSet=const(0x2023)
+
+length_response=bytearray(1) # length to send response once
+send_response=bytearray(32) # response to send
+
+length_irq_response=bytearray(1) # length to send response once
+send_irq_response=bytearray(32) # interrupt response to send
+
 # strip 1 directory level from
 # left slide (first level after root)
 # skip storage name so "/vfs/" becomes "/"
@@ -287,22 +308,6 @@ def parent(oh:int)->int:
   path=oh2path[oh]
   pp=path[:path[:-1].rfind("/")+1]
   return path2oh[pp]
-
-# USB PTP "type" 16-bit field
-PTP_USB_CONTAINER_UNDEFINED=const(0)
-PTP_USB_CONTAINER_COMMAND=const(1)
-PTP_USB_CONTAINER_DATA=const(2)
-PTP_USB_CONTAINER_RESPONSE=const(3)
-PTP_USB_CONTAINER_EVENT=const(4)
-
-# response codes, more in libgphoto2 ptp.h
-PTP_RC_OK=const(0x2001)
-#PTP_RC_GeneralError=const(0x2002)
-#PTP_RC_StoreFull=const(0x200C)
-#PTP_RC_ObjectWriteProtected=const(0x200D)
-#PTP_RC_InvalidCodeFormat=const(0x2016)
-#PTP_RC_UnknownVendorCode=const(0x2017)
-#PTP_RC_InvalidDataSet=const(0x2023)
 
 def print_ptp_header(cnt):
   print("%08x %04x %04x %08x" % struct.unpack("<LHHL",cnt),end="")
@@ -356,12 +361,6 @@ def get_ucs2_string(s):
 # objecthandle array
 def uint32_array(a):
   return struct.pack("<L"+"L"*len(a),len(a),*a)
-
-length_response=bytearray(1) # length to send response once
-send_response=bytearray(32) # response to send
-
-length_irq_response=bytearray(1) # length to send response once
-send_irq_response=bytearray(32) # interrupt response to send
 
 # for immediate response IN "ok"
 def hdr_ok():
@@ -556,15 +555,18 @@ def GetObjectHandles(cnt): # 0x1007
 # PTP_oi_Filename               53
 
 def GetObjectInfo(cnt): # 0x1008
+  global cur_list
   objh=hdr.p1 # FIXME optimize code
   # if object handle has different parent
-  # is probably not in cur_list, so
+  # it is probably not in cur_list, so
   # update cur_list with ls(parent)
-  # FIXME for custom objects
   this_parent=parent(objh)
   if this_parent in oh2path:
     if this_parent!=cur_parent:
-      ls(oh2path[this_parent])
+      if objh>>28: # custom
+        cur_list=fix_custom_cur_list[this_parent]
+      else: # vfs
+        ls(oh2path[this_parent])
   #print("objh=%08x" % objh)
   ObjectFormat=PTP_OFC_Text
   ProtectionStatus=0 # 0:rw 1:ro
