@@ -18,6 +18,25 @@ on blue drawer icon.
     apt install gvfs
     pkill gvfs; pkill nautilus
 
+gvfs has bug with MTP os currently it
+is recommended to use PTP protocol rather
+than MTP.
+
+    PROTOCOL=b"PTP"
+
+PTP:  completely works and directory browsing is
+faster than MTP.
+
+MTP: gvfs read does not work but write works.
+gvfs claims device with libmtp. If file read
+was done by libmtp it would work, but instead
+of libmtp, gvfs tries to claim device
+with libphoto2 to reading the file, while
+device is already claimed by libmtp. Only
+one process (either libmtp or libgphoto2)
+can claim device but not both at the same time
+so from this situation the error appears.
+
 For commandline and scripting:
 when user is logged to gnome, PTP is mounted here:
 
@@ -62,7 +81,7 @@ linux skips storage name and displays root folder.
 Early support tested on Sonoma 14.4.
 Set interface to MTP mode:
 
-    INTERFACE0=b"MTP" # libmtp, windows and apple
+    PROTOCOL=b"MTP" # libmtp, windows and apple
 
 After plugging device to USB port a window should
 appear with vfs file list and tabs for storages
