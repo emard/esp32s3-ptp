@@ -1,7 +1,10 @@
 # esp32s3 micropython >= 1.26
 
-# file browser using USB PTP protocol
-# tested on linux gnome, windows 10, apple
+# file browser using USB PTP/MTP protocol
+# should work on linux, windows, apple
+# linux gvfs BUG: MTP can write but can't read
+# file r/w works on gvfs with PTP:
+# PROTOCOL=b"PTP"
 
 # protocol info:
 # https://github.com/gphoto/libgphoto2/tree/master/camlibs/ptp2
@@ -36,7 +39,7 @@ PID = const(0xabcd)
 # USB endpoints used by PTP
 PTP_DATA_IN=const(0x83)
 PTP_DATA_OUT=const(0x03)
-PTP_EVENT_IN=const(0x84)
+PTP_EVENT_IN=const(0x84) # not used
 
 # device textual appearance
 MANUFACTURER=b"iManufacturer"
@@ -51,9 +54,6 @@ VERSION=b"3.1.8"
 STORID_VFS=const(0x10001) # micropython VFS
 STORID_CUSTOM=const(0x20002) # custom for FPGA
 STORAGE={STORID_VFS:b"vfs", STORID_CUSTOM:b"custom"}
-
-EVENT_OBJECTINFO_CHANGED=False # All
-#EVENT_OBJECTINFO_CHANGED=True # Windows and Linux, but not Apple
 
 current_storid=STORID_VFS # must choose one
 # PTP
@@ -772,16 +772,6 @@ def SendObjectInfo(cnt): # 0x100C
     #print_hex(ptp_buf[:hdr.len])
     usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:hdr.len])
 
-def irq_sendobject_complete():
-  global fd
-  hdr.len=16
-  hdr.type=PTP_USB_CONTAINER_EVENT
-  hdr.code=PTP_EC_ObjectInfoChanged
-  hdr.p1=current_send_handle
-  print("irq>",end="")
-  print_hex(ptp_buf[:hdr.len])
-  usbd.submit_xfer(PTP_EVENT_IN, memoryview(ptp_buf)[:hdr.len])
-
 def close_sendobject():
   if send_parent>>24==0xc1: # fpga
     ecp5.prog_close()
@@ -834,14 +824,10 @@ def SendObject(cnt): # 0x100D
     # if host has sent all bytes it promised to send
     # report it to the host that file is complete
     if remaining_send_length<=0:
-      # send irq, after irq reply OK to host
       #print(">",end="")
       #print_hex(ptp_buf[:length])
       close_sendobject()
-      if EVENT_OBJECTINFO_CHANGED:
-        irq_sendobject_complete()
-      else:
-        in_ok_sendobject()
+      in_ok_sendobject()
     else:
       # host will send another OUT command
       # prepare full buffer to read again from host
@@ -954,10 +940,7 @@ def ep1_out_done(result, xferred_bytes):
     else:
       # signal to host we have received entire file
       close_sendobject()
-      if EVENT_OBJECTINFO_CHANGED:
-        irq_sendobject_complete()
-      else:
-        in_ok_sendobject()
+      in_ok_sendobject()
   else:
     #print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
     #print("<",end="")
@@ -988,6 +971,7 @@ def ep1_in_done(result, xferred_bytes):
     else:
       usbd.submit_xfer(PTP_DATA_OUT, ptp_buf)
 
+# not used
 def ep2_in_done(result, xferred_bytes):
   # after IRQ data being sent, reply OK to host
   in_ok_sendobject()
