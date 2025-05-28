@@ -18,7 +18,7 @@ on blue drawer icon.
     apt install gvfs
     pkill gvfs; pkill nautilus
 
-gvfs has bug with MTP os currently it
+gvfs 1.57.2 has bug with MTP so currently it
 is recommended to use PTP protocol rather
 than MTP.
 
