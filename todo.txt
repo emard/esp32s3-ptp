@@ -1,0 +1,7 @@
+[ ] ptp.py read-only to avoid accidental delete
+[ ] setting any file permission ro/rw
+[ ] PTP error at disk full
+[ ] PTP error at flash retry giving up
+[ ] prevent infinite loop at flashing when no ecp5 hardware
+
+
