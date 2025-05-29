@@ -2,6 +2,10 @@
 [ ] setting any file permission ro/rw
 [ ] PTP error at disk full
 [ ] PTP error at flash retry giving up
+[ ] PTP reports error of unsuccessful sendobject
+    but internally it remembers file in filesystem
+    after error delete the file or postpone file creation
+    after successful sendobject
 [ ] prevent infinite loop at flashing when no ecp5 hardware
 
 
