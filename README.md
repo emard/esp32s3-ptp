@@ -5,6 +5,15 @@ esp32s3 acts like still image camera to present a simple file-based filesystem
 to the host. Filesystem is not block based like FAT so it doesn't need some
 "eject" or "clean unmount" before unplugging. Tested on linux and windows 10.
 
+# Install
+
+   mpremote resume cp ptp.py :/
+
+autostart
+
+   echo "import ptp" > boot.py
+   mpremote resume cp boot.py :/
+
 # Linux
 
 Open Gnome file browser "nautilus" by clicking
@@ -50,6 +59,20 @@ which I haven't yet tried.
 When gnome is stopped (service gdm3 stop)
 PTP filesystem can be accessed
 by commandline "gphoto2".
+
+# mpremote usage
+
+"ptp.py" implements usb-serial CDC micropython prompt.
+File operations with mpremote should be used with "resume"
+option like this
+
+    mpremate resume ls
+    mpremote resume cp file1.txt :/
+
+Without "resume" mpremote will not work.
+mpremote first performs soft-reset which disconnects
+usb-serial device and then a full screen of python
+errors will appear.
 
 # gphoto usage
 
