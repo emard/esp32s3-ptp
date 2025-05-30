@@ -790,7 +790,7 @@ def close_sendobject()->bool:
   return True
 
 def SendObject(cnt): # 0x100D
-  global txid,send_length,remaining_send_length,addr,fd
+  global txid,send_length,remaining_send_length,addr,fd,out_cb
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
     if send_parent>>24==0xc1: # fpga
@@ -840,9 +840,14 @@ def SendObject(cnt): # 0x100D
     else:
       # host will send another OUT command
       # prepare full buffer to read again from host
-      if send_parent>>24==0xc2: # flash
+      if send_parent>>24==0xc1: # fpga
+        out_cb=out_fpga
+        usbd.submit_xfer(PTP_DATA_OUT,ptp_buf)
+      elif send_parent>>24==0xc2: # flash
+        out_cb=out_flash
         usbd.submit_xfer(PTP_DATA_OUT,memoryview(ptp_buf)[52:4148])
-      else:
+      else: # file
+        out_cb=out_file
         usbd.submit_xfer(PTP_DATA_OUT,ptp_buf)
 
 #def SetObjectProtection(cnt): # 0x1012
@@ -915,46 +920,62 @@ def _control_xfer_cb(stage, request):
       handle_out(bRequest,wValue,buf)
   return True
 
-# USB callback when our custom USB interface is opened by the host.
+# USB callback when our custom
+# USB interface is opened by the host.
 def _open_itf_cb(interface_desc_view):
   # Prepare to receive first data packet on the OUT endpoint.
   if interface_desc_view[11]==PTP_DATA_IN:
     usbd.submit_xfer(PTP_DATA_OUT,ptp_buf)
   #print("_open_itf_cb", bytes(interface_desc_view))
 
-def ptp_data_out_done(result, xferred_bytes):
-  global remaining_send_length,addr,fd
+# OUT: host to device
+# callbacks when OUT is done
+def out_cmd(xferred_bytes:int):
+  #print("0x%04x %s"%(hdr.code,ptp_opcode_cb[hdr.code].__name__))
+  #print("<",end="")
+  #print_hex(ptp_buf[:xferred_bytes])
+  ptp_opcode_cb[hdr.code](ptp_buf[:xferred_bytes])
+
+out_cb=out_cmd # device receives commands from host
+
+# common end
+# [a:b] is the buffer range of next OUT command
+def out_end(xferred_bytes:int,a:int,b:int):
+  global remaining_send_length,out_cb
+  remaining_send_length-=xferred_bytes
   if remaining_send_length>0:
-    # continue receiving parts of the file
-    if send_parent>>24==0xc1:
-      ecp5.hwspi.write(ptp_buf)
-    elif send_parent>>24==0xc2: # flash
-      if xferred_bytes<4096:
-        memoryview(ptp_buf)[52+xferred_bytes:4148]=bytearray(b"\xff"*(4096-xferred_bytes))
-      ecp5.flash_write_block_retry(memoryview(ptp_buf)[:4096],addr&0xFFF000)
-      memoryview(ptp_buf)[:52]=ptp_buf[4096:4148]
-      addr+=xferred_bytes
-    else:
-      fd.write(ptp_buf[:xferred_bytes])
-    remaining_send_length-=xferred_bytes
-    #print_hexdump(cnt)
-    #print("<len(cnt)=",xferred_bytes,"remaining_send_length=", remaining_send_length)
-    if remaining_send_length>0:
-      # host will send another OUT command
-      # prepare full buffer to read again from host
-      if send_parent>>24==0xc2: # flash
-        usbd.submit_xfer(PTP_DATA_OUT, memoryview(ptp_buf)[52:4148])
-      else:
-        usbd.submit_xfer(PTP_DATA_OUT, ptp_buf)
-    else:
-      # signal to host we have received entire file
-      ok=close_sendobject()
-      in_end_sendobject(ok)
+    usbd.submit_xfer(PTP_DATA_OUT,memoryview(ptp_buf)[a:b])
   else:
-    #print("0x%04x %s" % (hdr.code,ptp_opcode_cb[hdr.code].__name__))
-    #print("<",end="")
-    #print_hex(ptp_buf[:xferred_bytes])
-    ptp_opcode_cb[hdr.code](ptp_buf[:xferred_bytes])
+    #print("end")
+    out_cb=out_cmd
+    ok=close_sendobject()
+    in_end_sendobject(ok)
+
+def out_file(xferred_bytes:int):
+  #print("file remain",remaining_send_length)
+  if remaining_send_length>0:
+    fd.write(ptp_buf[:xferred_bytes])
+  out_end(xferred_bytes,0,len(ptp_buf))
+
+def out_fpga(xferred_bytes:int):
+  #print("fpga remain",remaining_send_length)
+  if remaining_send_length>0:
+    ecp5.hwspi.write(ptp_buf)
+  out_end(xferred_bytes,0,len(ptp_buf))
+
+def out_flash(xferred_bytes:int):
+  global remaining_send_length,addr,out_cb
+  #print("flash remain",remaining_send_length)
+  if remaining_send_length>0:
+    if xferred_bytes<4096:
+      memoryview(ptp_buf)[52+xferred_bytes:4148]=bytearray(b"\xff"*(4096-xferred_bytes))
+    ecp5.flash_write_block_retry(memoryview(ptp_buf)[:4096],addr&0xFFF000)
+    memoryview(ptp_buf)[:52]=ptp_buf[4096:4148]
+    addr+=xferred_bytes
+  out_end(xferred_bytes,52,4148)
+
+def ptp_data_out_done(result,xferred_bytes):
+  out_cb(xferred_bytes)
 
 def ptp_data_in_done(result, xferred_bytes):
   global remain_getobj_len,fd
