@@ -646,7 +646,7 @@ def GetObjectInfo(cnt): # 0x1008
     in_hdr_data_ok(data)
 
 def GetObject(cnt): # 0x1009
-  global txid,remain_getobj_len,fd
+  global txid,remain_getobj_len,fd,addr
   txid=hdr.txid
   if hdr.p1 in oh2path:
     fullpath=oh2path[hdr.p1]
@@ -665,12 +665,22 @@ def GetObject(cnt): # 0x1009
         fd.close()
         ep_cb[PTP_DATA_IN]=in_end_getobject
     if fullpath.startswith("/"+STORAGE[STORID_CUSTOM].decode()):
-      msg=custom_txt
-      filesize=len(msg)
-      length=12+filesize
-      remain_getobj_len=0
-      memoryview(ptp_buf)[12:12+len(msg)]=msg
-      ep_cb[PTP_DATA_IN]=in_end_getobject
+      if hdr.p1>>24==0xc1: # fpga
+        msg=custom_txt
+        filesize=len(msg)
+        length=12+filesize
+        remain_getobj_len=0
+        memoryview(ptp_buf)[12:12+len(msg)]=msg
+        ep_cb[PTP_DATA_IN]=in_end_getobject
+      if hdr.p1>>24==0xc2: # flash
+        filesize=1<<24 # 16MB
+        len1st=4096
+        length=12+len1st
+        remain_getobj_len=filesize-len1st
+        ecp5.flash_open()
+        ecp5.flash_read_block(memoryview(ptp_buf)[12:12+len1st],0)
+        addr=len1st
+        ep_cb[PTP_DATA_IN]=in_get_flash
     hdr.len=12+filesize
     hdr.type=PTP_USB_CONTAINER_DATA
   usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:length])
@@ -975,6 +985,17 @@ def in_get_file(xferred_bytes):
   #print(">",end="")
   #print_hexdump(ptp_buf[:packet_len])
   usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:packet_len])
+
+def in_get_flash(xferred_bytes):
+  global remain_getobj_len,addr
+  ecp5.flash_read_block(ptp_buf,4096)
+  addr+=4096
+  remain_getobj_len-=4096
+  if remain_getobj_len<=0:
+    remain_getobj_len=0
+    ecp5.flash_close()
+    ep_cb[PTP_DATA_IN]=in_end_getobject
+  usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:4096])
 
 # not used
 def ptp_event_in_done(xferred_bytes):
