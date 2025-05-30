@@ -7,5 +7,4 @@
     after error delete the file or postpone file creation
     after successful sendobject
 [ ] prevent infinite loop at flashing when no ecp5 hardware
-
-
+[ ] flash reading flash@0x000000-0xFFFFFF.bin
