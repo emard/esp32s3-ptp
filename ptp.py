@@ -426,7 +426,7 @@ def hdr_ok():
 
 def in_hdr_ok():
   hdr_ok()
-  usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:hdr.len])
+  usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:hdr.len])
 
 def in_end_sendobject(ok):
   hdr.type=PTP_USB_CONTAINER_RESPONSE
@@ -442,23 +442,15 @@ def in_end_sendobject(ok):
     hdr.len=12
   usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:hdr.len])
 
-# after one IN submit another with response OK
-def respond_ok():
-  send_response[0:12]=struct.pack("<LHHL",12,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,hdr.txid)
-  length_response[0]=12
-  # length_response[0] is set now and reset to 0 after IN is submitted
-
-def respond_ok_tx(id):
-  send_response[0:12]=struct.pack("<LHHL",12,PTP_USB_CONTAINER_RESPONSE,PTP_RC_OK,id)
-  length_response[0]=12
-
-def in_hdr_data(data):
+def in_hdr_data_ok(data):
+  global in_cb
   hdr.len=12+len(data)
   hdr.type=PTP_USB_CONTAINER_DATA
   ptp_buf[12:hdr.len]=data
   #print(">",end="")
   #print_hex(ptp_buf[:hdr.len])
   usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:hdr.len])
+  in_cb=in_ok
 
 def OpenSession(cnt):
   global sesid
@@ -515,13 +507,11 @@ def GetDeviceInfo(cnt): # 0x1001
   deviceversion=ucs2_string(VERSION)
   serialnumber=ucs2_string(SERIAL)
   data=header+extension+functional_mode+operations+events+deviceprops+captureformats+imageformats+manufacturer+model+deviceversion+serialnumber
-  respond_ok()
-  in_hdr_data(data)
+  in_hdr_data_ok(data)
 
 def GetStorageIDs(cnt): # 0x1004
   data=uint32_array(STORAGE)
-  respond_ok()
-  in_hdr_data(data)
+  in_hdr_data_ok(data)
 
 # PTP_si_StorageType               0
 # PTP_si_FilesystemType            2
@@ -561,8 +551,7 @@ def GetStorageInfo(cnt): # 0x1005
   VolumeLabel=StorageDescription # for Apple
   hdr1=struct.pack("<HHHQQL",StorageType,FilesystemType,AccessCapability,MaxCapability,FreeSpaceInBytes,FreeSpaceInImages)
   data=hdr1+StorageDescription+VolumeLabel
-  respond_ok()
-  in_hdr_data(data)
+  in_hdr_data_ok(data)
 
 # for given handle id of a directory
 # returns array of handles
@@ -572,9 +561,8 @@ def GetObjectHandles(cnt): # 0x1007
   #print("storageid 0x%08x" % storageid)
   if storageid==0xFFFFFFFF:
     # return empty storage
-    respond_ok()
     data=uint32_array([])
-    in_hdr_data(data)
+    in_hdr_data_ok(data)
     return
   dirhandle=hdr.p3
   if dirhandle==0xFFFFFFFF: # root directory
@@ -590,8 +578,7 @@ def GetObjectHandles(cnt): # 0x1007
   # FIXME when directory has many entries > 256 data
   # would not fit in one 4160 byte block
   # block continuation neede
-  respond_ok()
-  in_hdr_data(data)
+  in_hdr_data_ok(data)
 
 # PTP_oi_StorageID		 0
 # PTP_oi_ObjectFormat		 4
@@ -660,11 +647,10 @@ def GetObjectInfo(cnt): # 0x1008
     modify=create
     #data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+b"\0\0\0"
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
-    respond_ok()
-    in_hdr_data(data)
+    in_hdr_data_ok(data)
 
 def GetObject(cnt): # 0x1009
-  global txid,remain_getobj_len,fd
+  global txid,remain_getobj_len,fd,in_cb
   txid=hdr.txid
   if hdr.p1 in oh2path:
     fullpath=oh2path[hdr.p1]
@@ -677,17 +663,18 @@ def GetObject(cnt): # 0x1009
       # file data after 12-byte header
       length=12+len1st
       remain_getobj_len=filesize-len1st
+      in_cb=in_get_file
       if remain_getobj_len<=0:
         remain_getobj_len=0
         fd.close()
-        respond_ok_tx(txid)
+        in_cb=in_end_getobject
     if fullpath.startswith("/"+STORAGE[STORID_CUSTOM].decode()):
       msg=custom_txt
       filesize=len(msg)
       length=12+filesize
       remain_getobj_len=0
       memoryview(ptp_buf)[12:12+len(msg)]=msg
-      respond_ok_tx(txid)
+      in_cb=in_end_getobject
     hdr.len=12+filesize
     hdr.type=PTP_USB_CONTAINER_DATA
   usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:length])
@@ -835,6 +822,7 @@ def SendObject(cnt): # 0x100D
     if remaining_send_length<=0:
       #print(">",end="")
       #print_hex(ptp_buf[:length])
+      out_cb=out_cmd
       ok=close_sendobject()
       in_end_sendobject(ok)
     else:
@@ -938,34 +926,29 @@ def out_cmd(xferred_bytes:int):
 
 out_cb=out_cmd # device receives commands from host
 
-# common end
-# [a:b] is the buffer range of next OUT command
+# common end: [a:b] is the buffer range of next OUT command
 def out_end(xferred_bytes:int,a:int,b:int):
   global remaining_send_length,out_cb
   remaining_send_length-=xferred_bytes
   if remaining_send_length>0:
     usbd.submit_xfer(PTP_DATA_OUT,memoryview(ptp_buf)[a:b])
   else:
-    #print("end")
     out_cb=out_cmd
     ok=close_sendobject()
     in_end_sendobject(ok)
 
 def out_file(xferred_bytes:int):
-  #print("file remain",remaining_send_length)
   if remaining_send_length>0:
     fd.write(ptp_buf[:xferred_bytes])
   out_end(xferred_bytes,0,len(ptp_buf))
 
 def out_fpga(xferred_bytes:int):
-  #print("fpga remain",remaining_send_length)
   if remaining_send_length>0:
     ecp5.hwspi.write(ptp_buf)
   out_end(xferred_bytes,0,len(ptp_buf))
 
 def out_flash(xferred_bytes:int):
   global remaining_send_length,addr,out_cb
-  #print("flash remain",remaining_send_length)
   if remaining_send_length>0:
     if xferred_bytes<4096:
       memoryview(ptp_buf)[52+xferred_bytes:4148]=bytearray(b"\xff"*(4096-xferred_bytes))
@@ -977,27 +960,37 @@ def out_flash(xferred_bytes:int):
 def ptp_data_out_done(result,xferred_bytes):
   out_cb(xferred_bytes)
 
-def ptp_data_in_done(result, xferred_bytes):
-  global remain_getobj_len,fd
-  if length_response[0]:
-    #print(">",end="")
-    #print_hex(send_response[:length_response[0]])
-    usbd.submit_xfer(PTP_DATA_IN, send_response[:length_response[0]])
-    length_response[0]=0 # consumed, prevent recurring
-  else:
-    if remain_getobj_len:
-      # TODO flash reading
-      packet_len=fd.readinto(ptp_buf)
-      remain_getobj_len-=packet_len
-      if remain_getobj_len<=0:
-        remain_getobj_len=0
-        fd.close()
-        respond_ok_tx(txid) # after this send ok IN response
-      #print(">",end="")
-      #print_hexdump(ptp_buf[:packet_len])
-      usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:packet_len])
-    else:
-      usbd.submit_xfer(PTP_DATA_OUT, ptp_buf)
+def in_empty(xferred_bytes):
+  usbd.submit_xfer(PTP_DATA_OUT,ptp_buf)
+
+in_cb=in_empty
+
+def in_ok(xferred_bytes):
+  global in_cb
+  in_cb=in_empty
+  in_hdr_ok()
+
+def in_end_getobject(xferred_bytes):
+  global in_cb
+  hdr_ok()
+  hdr.txid=txid
+  in_cb=in_empty
+  usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:hdr.len])
+
+def in_get_file(xferred_bytes):
+  global remain_getobj_len,fd,in_cb
+  packet_len=fd.readinto(ptp_buf)
+  remain_getobj_len-=packet_len
+  if remain_getobj_len<=0:
+    remain_getobj_len=0
+    fd.close()
+    in_cb=in_end_getobject
+  #print(">",end="")
+  #print_hexdump(ptp_buf[:packet_len])
+  usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:packet_len])
+
+def ptp_data_in_done(result,xferred_bytes):
+  in_cb(xferred_bytes)
 
 # not used
 def ptp_event_in_done(result, xferred_bytes):
@@ -1013,8 +1006,8 @@ def _xfer_cb(ep_addr,result,xferred_bytes):
   ep_addr_cb[ep_addr](result,xferred_bytes)
 
 # Switch the USB device to our custom USB driver.
-usbd = machine.USBDevice()
-usbd.builtin_driver = usbd.BUILTIN_CDC
+usbd=machine.USBDevice()
+usbd.builtin_driver=usbd.BUILTIN_CDC
 usbd.config(
   desc_dev=_desc_dev,
   desc_cfg=_desc_cfg,
