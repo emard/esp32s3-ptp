@@ -4,7 +4,10 @@
 # should work on linux, windows, apple
 # linux gvfs BUG: MTP can write but can't read
 # file r/w works on gvfs with PTP:
-# PROTOCOL=b"PTP"
+# if interface is named "MTP", host uses MTP protocol.
+# for any other name host uses PTP protocol.
+PROTOCOL=b"PTP" # libgphoto2, windows and linux
+#PROTOCOL=b"MTP" # libmtp, windows and apple, linux write but not read
 
 # protocol info:
 # https://github.com/gphoto/libgphoto2/tree/master/camlibs/ptp2
@@ -47,10 +50,6 @@ PTP_EVENT_IN=const(0x84) # not used
 MANUFACTURER=b"iManufacturer"
 PRODUCT=b"iProduct"
 SERIAL=b"00000000"
-# if interface is named "MTP", host uses MTP protocol.
-# for any other name host uses PTP protocol.
-PROTOCOL=b"MTP" # libmtp, windows and apple, linux write but not read
-#PROTOCOL=b"PTP" # libgphoto2, windows and linux
 VERSION=b"3.1.8"
 STORID_VFS=const(0x10001) # micropython VFS
 STORID_CUSTOM=const(0x20002) # custom for FPGA
@@ -270,6 +269,7 @@ current_send_handle=0
 # path2oh["/custom/"]=0 will remain
 oh2path={
 0:"/custom/",
+0xc00000f0:"/custom/readme.txt",
 0xc10000d1:"/custom/fpga/",
 0xc10000f1:"/custom/fpga/fpga.bit.txt",
 0xc20000d2:"/custom/flash/",
@@ -287,10 +287,11 @@ cur_parent=0
 custom_txt=b"copy binary file to this directory\n"
 
 # fuxed custom ilistdir, pre-filled with custom fs
-fix_custom_cur_list={
+custom_cur_list={
 0:{
   0xc10000d1:('fpga',VFS_DIR,0,0),
   0xc20000d2:('flash',VFS_DIR,0,0),
+  0xc00000f0:('readme.txt',VFS_FILE,0,len(custom_txt)),
   },
 0xc10000d1:{0xc10000f1:('fpga.bit.txt',VFS_FILE,0,len(custom_txt))},
 0xc20000d2:{0xc20000f2:('flash.bin.txt',VFS_FILE,0,len(custom_txt))},
@@ -569,7 +570,7 @@ def GetObjectHandles(cnt): # 0x1007
     else:
       ls(oh2path[dirhandle])
   if storageid==STORID_CUSTOM:
-    cur_list=fix_custom_cur_list[dirhandle]
+    cur_list=custom_cur_list[dirhandle]
   data=uint32_array(cur_list)
   # FIXME when directory has many entries > 256 data
   # would not fit in one 4160 byte block
@@ -604,7 +605,7 @@ def GetObjectInfo(cnt): # 0x1008
   if this_parent in oh2path:
     if this_parent!=cur_parent:
       if objh>>28: # custom
-        cur_list=fix_custom_cur_list[this_parent]
+        cur_list=custom_cur_list[this_parent]
       else: # vfs
         ls(oh2path[this_parent])
   #print("objh=%08x" % objh)
@@ -617,7 +618,7 @@ def GetObjectInfo(cnt): # 0x1008
     ParentObject=parent(objh) # 0 means this file is in root directory
     if objh>>28: # member of custom fs
       StorageID=STORID_CUSTOM
-      objname,objtype,_,objsize=fix_custom_cur_list[ParentObject][objh]
+      objname,objtype,_,objsize=custom_cur_list[ParentObject][objh]
     else: # high nibble=0 vfs
       StorageID=STORID_VFS
       objname,objtype,_,objsize=cur_list[objh]
@@ -665,7 +666,7 @@ def GetObject(cnt): # 0x1009
         fd.close()
         ep_cb[PTP_DATA_IN]=in_end_getobject
     if fullpath.startswith("/"+STORAGE[STORID_CUSTOM].decode()):
-      if hdr.p1>>24==0xc1: # fpga
+      if hdr.p1>>24==0xc1 or hdr.p1>>24==0xc0: # fpga or readme
         msg=custom_txt
         filesize=len(msg)
         length=12+filesize
@@ -751,7 +752,7 @@ def SendObjectInfo(cnt): # 0x100C
       path2oh[send_fullpath_h2p]=current_send_handle
       oh2path[current_send_handle]=send_fullpath_h2p
       if current_send_handle>>28: # !=0 custom
-        fix_custom_cur_list[send_parent][current_send_handle]=(str_send_name,vfstype,0,send_length)
+        custom_cur_list[send_parent][current_send_handle]=(str_send_name,vfstype,0,send_length)
       else: # ==0 vfs
         cur_list[current_send_handle]=(str_send_name,vfstype,0,send_length)
       #path2handle[send_parent_path][str_send_name_p2h]=current_send_handle
