@@ -8,3 +8,5 @@
     after successful sendobject
 [ ] prevent infinite loop at flashing when no ecp5 hardware
 [ ] flash reading flash@0x000000-0xFFFFFF.bin
+[ ] add dfu - uses only ctrl transfer
+
