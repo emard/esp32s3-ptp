@@ -9,4 +9,8 @@
 [ ] prevent infinite loop at flashing when no ecp5 hardware
 [ ] flash reading flash@0x000000-0xFFFFFF.bin
 [ ] add dfu - uses only ctrl transfer
+[ ] PTP mode -> plugged -> copy valid bitstream to /flash -> error
+    sometimes there are initial error, host tries to send
+    bistream file with send_length=0
+    few more attempt of the same file then it works
 
