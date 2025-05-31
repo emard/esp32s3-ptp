@@ -37,6 +37,7 @@ PROTOCOL=b"PTP" # libgphoto2, windows and linux
 import machine, struct, time, os, uctypes
 import ecp5
 from micropython import const
+#import hashlib
 
 VID = const(0x1234)
 PID = const(0xabcd)
@@ -620,10 +621,6 @@ def GetObjectInfo(cnt): # 0x1008
         ls(oh2path[this_parent])
   #print("objh=%08x" % objh)
   ObjectFormat=PTP_OFC_Text
-  if objh==0xc00000f0: # readme
-    ProtectionStatus=1 # ro
-  else:
-    ProtectionStatus=0 # 0:rw
   thumb_image_null=bytearray(26)
   assoc_seq_null=bytearray(10)
   if objh in oh2path:
@@ -645,6 +642,12 @@ def GetObjectInfo(cnt): # 0x1008
     else: # stat[0]==VFS_FILE # file
       ObjectFormat=PTP_OFC_Text
       ObjectSize=objsize
+    if objh==0xc00000f0: # readme
+      ProtectionStatus=1 # ro
+    else:
+      ProtectionStatus=0 # 0:rw
+    if objh&0xFF==0xf1 or objh&0xFF==0xf2: # file fpga or flash
+      ObjectFormat=PTP_OFC_Undefined
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
     #print("objname:",objname)
@@ -664,7 +667,6 @@ def GetObject(cnt): # 0x1009
   txid=hdr.txid
   if hdr.p1 in oh2path:
     fullpath=oh2path[hdr.p1]
-    #print(fullpath)
     if fullpath.startswith("/"+STORAGE[STORID_VFS].decode()):
       fd=open(strip1dirlvl(fullpath),"rb")
       filesize=fd.seek(0,2)
@@ -746,9 +748,10 @@ def SendObjectInfo(cnt): # 0x100C
     #print("send name:", str_send_name)
     #send_length,=struct.unpack("<L", cnt[20:24])
     send_length=hdr.p3
-    #print("send length:", send_length)
     send_fullpath=oh2path[send_parent]+str_send_name
-    #print("fullpath",send_fullpath)
+    if send_length<=0:
+      print("warning send length",send_length)
+      print("fullpath",send_fullpath)
     if send_fullpath in path2oh:
       current_send_handle=path2oh[send_fullpath]
     else:
@@ -803,13 +806,6 @@ def SendObject(cnt): # 0x100D
   global txid,send_length,remaining_send_length,addr,fd
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
-    if send_parent>>24==0xc1: # fpga
-      ecp5.prog_open()
-    elif send_parent>>24==0xc2: # flash
-      ecp5.flash_open()
-      addr=0
-    else:
-      fd=open(strip1dirlvl(send_fullpath),"wb")
     # host will send another OUT command
     # prepare full buffer to read again from host
     usbd.submit_xfer(PTP_DATA_OUT, ptp_buf)
@@ -818,8 +814,12 @@ def SendObject(cnt): # 0x100D
     # 12 bytes header, rest is payload
     if send_length>0:
       if send_parent>>24==0xc1: # fpga
+        ecp5.prog_open()
         ecp5.hwspi.write(cnt[12:])
+        #print_hexdump(hashlib.md5(cnt[12:]).digest())
       elif send_parent>>24==0xc2: # flash
+        ecp5.flash_open()
+        addr=0
         # first packet is read in 4160=4096+64 bytes buffer
         # buf[0:12] header
         # buf[12:4108] 4096 bytes flash
@@ -836,10 +836,10 @@ def SendObject(cnt): # 0x100D
         memoryview(ptp_buf)[:52]=ptp_buf[4108:4160]
         addr+=4096
       else:
+        fd=open(strip1dirlvl(send_fullpath),"wb")
         fd.write(cnt[12:])
       remaining_send_length=send_length-(len(cnt)-12)
       send_length=0
-    #print("send_length=",send_length,"remain=",remaining_send_length)
     # if host has sent all bytes it promised to send
     # report it to the host that file is complete
     if remaining_send_length<=0:
@@ -965,7 +965,8 @@ def out_file(xferred_bytes:int):
 
 def out_fpga(xferred_bytes:int):
   if remaining_send_length>0:
-    ecp5.hwspi.write(ptp_buf)
+    ecp5.hwspi.write(ptp_buf[:xferred_bytes])
+    #print_hexdump(hashlib.md5(ptp_buf[:xferred_bytes]).digest())
   out_end(xferred_bytes,0,len(ptp_buf))
 
 def out_flash(xferred_bytes:int):
