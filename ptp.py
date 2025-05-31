@@ -271,9 +271,8 @@ oh2path={
 0:"/custom/",
 0xc00000f0:"/custom/readme.txt",
 0xc10000d1:"/custom/fpga/",
-0xc10000f1:"/custom/fpga/fpga.bit.txt",
 0xc20000d2:"/custom/flash/",
-0xc20000f2:"/custom/flash/flash.bin.txt",
+0xc20000f2:"/custom/flash/flash@0-0xFFFFFF.bin",
 }
 # path2oh is reverse of oh2path, only file names
 path2oh={v:k for k,v in oh2path.items()}
@@ -284,7 +283,14 @@ cur_list={}
 # object id of current parent directory
 cur_parent=0
 
-custom_txt=b"copy binary file to this directory\n"
+custom_txt=b"PTP/MTP FPGA programmer\n\
+\n\
+Just copy files.\n\
+\n\
+Examples for FLASH address range:\n\
+flash@0x200000.bin\n\
+rom@0x400000-0x4FFFFF.bin\n\
+\n"
 
 # fuxed custom ilistdir, pre-filled with custom fs
 custom_cur_list={
@@ -293,8 +299,8 @@ custom_cur_list={
   0xc20000d2:('flash',VFS_DIR,0,0),
   0xc00000f0:('readme.txt',VFS_FILE,0,len(custom_txt)),
   },
-0xc10000d1:{0xc10000f1:('fpga.bit.txt',VFS_FILE,0,len(custom_txt))},
-0xc20000d2:{0xc20000f2:('flash.bin.txt',VFS_FILE,0,len(custom_txt))},
+0xc10000d1:{},
+0xc20000d2:{0xc20000f2:('flash@0-0xFFFFFF.bin',VFS_FILE,0,1<<24)},
 }
 
 # USB PTP "type" 16-bit field
@@ -308,7 +314,7 @@ PTP_USB_CONTAINER_EVENT=const(4)
 PTP_RC_OK=const(0x2001)
 #PTP_RC_GeneralError=const(0x2002)
 #PTP_RC_StoreFull=const(0x200C)
-#PTP_RC_ObjectWriteProtected=const(0x200D)
+PTP_RC_ObjectWriteProtected=const(0x200D)
 PTP_RC_SpecificationByFormatUnsupported=const(0x2014)
 #PTP_RC_InvalidCodeFormat=const(0x2016)
 #PTP_RC_UnknownVendorCode=const(0x2017)
@@ -420,10 +426,14 @@ def hdr_ok():
   hdr.len=12
   hdr.type=PTP_USB_CONTAINER_RESPONSE
   hdr.code=PTP_RC_OK
-  return 12
 
 def in_hdr_ok():
   hdr_ok()
+  usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:hdr.len])
+
+def in_hdr_write_protected():
+  hdr_ok()
+  hdr.code=PTP_RC_ObjectWriteProtected
   usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:hdr.len])
 
 def in_end_sendobject(ok):
@@ -610,7 +620,10 @@ def GetObjectInfo(cnt): # 0x1008
         ls(oh2path[this_parent])
   #print("objh=%08x" % objh)
   ObjectFormat=PTP_OFC_Text
-  ProtectionStatus=0 # 0:rw 1:ro
+  if objh==0xc00000f0: # readme
+    ProtectionStatus=1 # ro
+  else:
+    ProtectionStatus=0 # 0:rw
   thumb_image_null=bytearray(26)
   assoc_seq_null=bytearray(10)
   if objh in oh2path:
@@ -697,9 +710,12 @@ def ohdel(oh):
     os.unlink(strip1dirlvl(fullpath))
 
 def DeleteObject(cnt): # 0x100B
-  ohdel(hdr.p1)
-  #print("deleted",fullpath)
-  in_hdr_ok()
+  if hdr.p1==0xc00000f0: # readme
+    in_hdr_write_protected()
+  else:
+    ohdel(hdr.p1)
+    #print("deleted",fullpath)
+    in_hdr_ok()
 
 def SendObjectInfo(cnt): # 0x100C
   global txid,send_length,send_name,next_handle,current_send_handle
