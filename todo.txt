@@ -15,4 +15,8 @@
     few more attempt of the same file then it works
     half-fixed: igonring send_length=0 to custom fs
 [ ] fix errors writing file to root of custom fs
-
+[ ] switch PTP/MTP mode with usb interface bAlternateSetting
+    MTP:
+    echo 0 > /sys/bus/usb/devices/1-5/1-5\:1.2/bAlternateSetting
+    PTP:
+    echo 1 > /sys/bus/usb/devices/1-5/1-5\:1.2/bAlternateSetting
