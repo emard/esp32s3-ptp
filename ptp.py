@@ -6,8 +6,8 @@
 # file r/w works on gvfs with PTP:
 # if interface is named "MTP", host uses MTP protocol.
 # for any other name host uses PTP protocol.
-PROTOCOL=b"PTP" # libgphoto2, windows and linux
-#PROTOCOL=b"MTP" # libmtp, windows and apple, linux write but not read
+#PROTOCOL=b"PTP" # libgphoto2, windows and linux
+PROTOCOL=b"MTP" # libmtp, windows and apple, linux write but not read
 
 # protocol info:
 # https://github.com/gphoto/libgphoto2/tree/master/camlibs/ptp2
@@ -34,13 +34,16 @@ PROTOCOL=b"PTP" # libgphoto2, windows and linux
 #
 # The device will then change to the custom USB device.
 
-import machine, struct, time, os, uctypes
-import ecp5
+import machine,struct,time,os,uctypes,re
 from micropython import const
 #import hashlib
+import ecp5
 
 VID = const(0x1234)
 PID = const(0xabcd)
+
+# flash chip size in bytes
+FLASHSIZE=1<<24
 
 # USB endpoints used by PTP
 PTP_DATA_IN=const(0x83)
@@ -259,6 +262,16 @@ fd=None # local open file descriptor
 next_handle=0
 current_send_handle=0
 
+readme_txt=b"PTP/MTP FPGA programmer\n\
+\n\
+Just copy files.\n\
+\n\
+Examples for FLASH address range in file name:\n\
+boot@0-0x1FFFFF.bin\n\
+user@0x200000-0xFFFFFF.bin\n\
+last@0xFF0000.bin\n\
+\n"
+
 # simplified structure
 # object handle->path and path->object handle
 # caches for every os.ilistdir object
@@ -273,7 +286,9 @@ oh2path={
 0xc00000f0:"/custom/readme.txt",
 0xc10000d1:"/custom/fpga/",
 0xc20000d2:"/custom/flash/",
-0xc20000f2:"/custom/flash/flash@0-0xFFFFFF.bin",
+0xc20000f2:"/custom/flash/full16MB.bin",
+0xc20000f3:"/custom/flash/boot2MB@0-0x1FFFFF.bin",
+0xc20000f4:"/custom/flash/user14MB@0x200000.bin",
 }
 # path2oh is reverse of oh2path, only file names
 path2oh={v:k for k,v in oh2path.items()}
@@ -284,24 +299,19 @@ cur_list={}
 # object id of current parent directory
 cur_parent=0
 
-custom_txt=b"PTP/MTP FPGA programmer\n\
-\n\
-Just copy files.\n\
-\n\
-Examples for FLASH address range:\n\
-flash@0x200000.bin\n\
-rom@0x400000-0x4FFFFF.bin\n\
-\n"
-
 # fuxed custom ilistdir, pre-filled with custom fs
 custom_cur_list={
 0:{
   0xc10000d1:('fpga',VFS_DIR,0,0),
   0xc20000d2:('flash',VFS_DIR,0,0),
-  0xc00000f0:('readme.txt',VFS_FILE,0,len(custom_txt)),
+  0xc00000f0:('readme.txt',VFS_FILE,0,len(readme_txt)),
   },
 0xc10000d1:{},
-0xc20000d2:{0xc20000f2:('flash@0-0xFFFFFF.bin',VFS_FILE,0,1<<24)},
+0xc20000d2:{
+  0xc20000f2:('full16MB.bin',VFS_FILE,0,FLASHSIZE),
+  0xc20000f3:('boot2MB@0-0x1FFFFF.bin',VFS_FILE,0,2*1<<20),
+  0xc20000f4:('user14MB@0x200000.bin',VFS_FILE,0,14*1<<20),
+  },
 }
 
 # USB PTP "type" 16-bit field
@@ -368,6 +378,22 @@ def parent(oh:int)->int:
   path=oh2path[oh]
   pp=path[:path[:-1].rfind("/")+1]
   return path2oh[pp]
+
+# fromto@4096-0x3FFF.bin
+# from@0x200000.rom
+# from@0xFF0000
+addrmatch=re.compile(r".*@(0x[0-9a-fA-F]+|[0-9]+)(?:-(0x[0-9a-fA-F]+|[0-9]+))?\.*")
+def name2addr(path:str):
+  global addr,addr_last
+  addr=0
+  addr_last=FLASHSIZE-1
+  match=addrmatch.search(path)
+  if match:
+    addr=int(match.group(1),0)
+    if match.group(2):
+      addr_last=int(match.group(2),0)
+  #print(path)
+  #print("flash range 0x%06x-0x%06x"%(addr,addr_last))
 
 def print_ptp_header(cnt):
   print("%08x %04x %04x %08x" % struct.unpack("<LHHL",cnt),end="")
@@ -474,7 +500,7 @@ PTP_DPC_DateTime=const(0x5011)
 # file formats
 PTP_OFC_Undefined=const(0x3000)
 PTP_OFC_Directory=const(0x3001)
-#PTP_OFC_Defined=const(0x3800)
+PTP_OFC_Defined=const(0x3800)
 #PTP_OFC_Executable=const(0x3003)
 PTP_OFC_Text=const(0x3004)
 #PTP_OFC_HTML=const(0x3005)
@@ -548,12 +574,16 @@ def GetStorageInfo(cnt): # 0x1005
   StorageType=STORAGE_FIXED_MEDIA
   FilesystemType=2
   AccessCapability=STORAGE_READ_WRITE
-  storinfo=os.statvfs("/")
-  blksize=storinfo[0]
-  blkmax=storinfo[2]
-  blkfree=storinfo[3]
-  MaxCapability=blksize*blkmax
-  FreeSpaceInBytes=blksize*blkfree
+  if storageid==STORID_VFS:
+    storinfo=os.statvfs("/")
+    blksize=storinfo[0]
+    blkmax=storinfo[2]
+    blkfree=storinfo[3]
+    MaxCapability=blksize*blkmax
+    FreeSpaceInBytes=blksize*blkfree
+  elif storageid==STORID_CUSTOM:
+    MaxCapability=FLASHSIZE
+    FreeSpaceInBytes=FLASHSIZE
   FreeSpaceInImages=0x10000
   StorageDescription=ucs2_string(STORAGE[storageid])
   VolumeLabel=StorageDescription # for Apple
@@ -640,14 +670,17 @@ def GetObjectInfo(cnt): # 0x1008
       ObjectFormat=PTP_OFC_Directory
       ObjectSize=0
     else: # stat[0]==VFS_FILE # file
-      ObjectFormat=PTP_OFC_Text
+      if fullpath.endswith(".txt"):
+        ObjectFormat=PTP_OFC_Text
+      else:
+        ObjectFormat=PTP_OFC_Defined
       ObjectSize=objsize
     if objh==0xc00000f0: # readme
       ProtectionStatus=1 # ro
     else:
       ProtectionStatus=0 # 0:rw
-    if objh&0xFF==0xf1 or objh&0xFF==0xf2: # file fpga or flash
-      ObjectFormat=PTP_OFC_Undefined
+    #if objh&0xFF==0xf1 or objh&0xFF==0xf2: # file fpga or flash
+    #  ObjectFormat=PTP_OFC_Undefined
     hdr1=struct.pack("<LHHL",StorageID,ObjectFormat,ProtectionStatus,ObjectSize)
     hdr2=struct.pack("<L",ParentObject)
     #print("objname:",objname)
@@ -682,21 +715,30 @@ def GetObject(cnt): # 0x1009
         ep_cb[PTP_DATA_IN]=in_end_getobject
     if fullpath.startswith("/"+STORAGE[STORID_CUSTOM].decode()):
       if hdr.p1>>24==0xc1 or hdr.p1>>24==0xc0: # fpga or readme
-        msg=custom_txt
+        msg=readme_txt
         filesize=len(msg)
         length=12+filesize
         remain_getobj_len=0
         memoryview(ptp_buf)[12:12+len(msg)]=msg
         ep_cb[PTP_DATA_IN]=in_end_getobject
       if hdr.p1>>24==0xc2: # flash
-        filesize=1<<24 # 16MB
-        len1st=4096
+        name2addr(fullpath)
+        filesize=addr_last+1-addr
+        if filesize<4096:
+          len1st=filesize
+        else:
+          len1st=4096
         length=12+len1st
         remain_getobj_len=filesize-len1st
         ecp5.flash_open()
-        ecp5.flash_read_block(memoryview(ptp_buf)[12:12+len1st],0)
-        addr=len1st
-        ep_cb[PTP_DATA_IN]=in_get_flash
+        ecp5.flash_read_block(memoryview(ptp_buf)[12:12+len1st],addr)
+        addr+=len1st
+        if remain_getobj_len<=0:
+          remain_getobj_len=0
+          ecp5.flash_close()
+          ep_cb[PTP_DATA_IN]=in_end_getobject
+        else:
+          ep_cb[PTP_DATA_IN]=in_get_flash
     hdr.len=12+filesize
     hdr.type=PTP_USB_CONTAINER_DATA
   usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:length])
@@ -745,6 +787,7 @@ def SendObjectInfo(cnt): # 0x100C
     #print("send objtype 0x%04x" % send_objtype)
     send_name=get_ucs2_string(cnt[64:])
     str_send_name=decode_ucs2_string(send_name)[:-1].decode()
+    name2addr(str_send_name)
     #print("send name:", str_send_name)
     #send_length,=struct.unpack("<L", cnt[20:24])
     send_length=hdr.p3
@@ -798,6 +841,7 @@ def close_sendobject()->bool:
     return ecp5.prog_close()
   elif send_parent>>24==0xc2: # flash
     ecp5.flash_close()
+    #ecp5.flash_report()
   else:
     fd.close()
   return True
@@ -819,7 +863,6 @@ def SendObject(cnt): # 0x100D
         #print_hexdump(hashlib.md5(cnt[12:]).digest())
       elif send_parent>>24==0xc2: # flash
         ecp5.flash_open()
-        addr=0
         # first packet is read in 4160=4096+64 bytes buffer
         # buf[0:12] header
         # buf[12:4108] 4096 bytes flash
@@ -1006,7 +1049,7 @@ def in_get_file(xferred_bytes):
 
 def in_get_flash(xferred_bytes):
   global remain_getobj_len,addr
-  ecp5.flash_read_block(ptp_buf,4096)
+  ecp5.flash_read_block(memoryview(ptp_buf)[:4096],addr)
   addr+=4096
   remain_getobj_len-=4096
   if remain_getobj_len<=0:
