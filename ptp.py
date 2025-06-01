@@ -885,10 +885,11 @@ def SendObject(cnt): # 0x100D
         fd.write(cnt[12:])
       remaining_send_length=send_length-(len(cnt)-12)
       send_length=0
-    else: # host send length 0
-      ep_cb[PTP_DATA_OUT]=out_cmd
-      in_end_sendobject(True)
-      return
+    else: # host send_length=0
+      if current_storid==STORID_CUSTOM: # NOP
+        ep_cb[PTP_DATA_OUT]=out_cmd
+        in_end_sendobject(True)
+        return
     # if host has sent all bytes it promised to send
     # report it to the host that file is complete
     if remaining_send_length<=0:
