@@ -420,7 +420,6 @@ def print_hexdump(cnt):
   print("")
 
 def print_ucs2_string(s):
-  #l,=struct.unpack("<B",s[0])
   for i in range(s[0]):
     print("%c" % s[1+i+i],end="")
   print("")
@@ -769,10 +768,7 @@ def SendObjectInfo(cnt): # 0x100C
   global current_storid
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
-    storageid=hdr.p1
-    #print("storageid 0x%08x" % storageid)
-    current_storid=storageid
-    #send_parent,=struct.unpack("<L",cnt[16:20])
+    current_storid=hdr.p1
     send_parent=hdr.p2
     if send_parent==0xffffffff:
       send_parent=0
@@ -791,7 +787,6 @@ def SendObjectInfo(cnt): # 0x100C
     str_send_name=decode_ucs2_string(send_name)[:-1].decode()
     name2addr(str_send_name)
     #print("send name:", str_send_name)
-    #send_length,=struct.unpack("<L", cnt[20:24])
     send_length=hdr.p3
     send_fullpath=oh2path[send_parent]+str_send_name
     #if send_length<=0:
