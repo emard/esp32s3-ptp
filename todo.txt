@@ -1,16 +1,18 @@
 [ ] ptp.py read-only to avoid accidental delete
 [ ] setting any file permission ro/rw
 [ ] PTP error at disk full
-[ ] PTP error at flash retry giving up
+[ ] PTP error at flash retry giving up - prevent infinite loop
 [ ] PTP reports error of unsuccessful sendobject
     but internally it remembers file in filesystem
     after error delete the file or postpone file creation
     after successful sendobject
 [ ] prevent infinite loop at flashing when no ecp5 hardware
-[ ] flash reading flash@0x000000-0xFFFFFF.bin
+[x] flash reading flash@0x000000-0xFFFFFF.bin
 [ ] add dfu - uses only ctrl transfer
-[ ] PTP mode -> plugged -> copy valid bitstream to /flash -> error
+[x] PTP mode -> plugged -> copy valid bitstream to /flash -> error
     sometimes there are initial error, host tries to send
     bistream file with send_length=0
     few more attempt of the same file then it works
+    half-fixed: igonring send_length=0 to custom fs
+[ ] fix errors writing file to root of custom fs
 
