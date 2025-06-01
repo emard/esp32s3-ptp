@@ -289,6 +289,7 @@ oh2path={
 0xc20000f2:"/custom/flash/full16MB.bin",
 0xc20000f3:"/custom/flash/boot2MB@0-0x1FFFFF.bin",
 0xc20000f4:"/custom/flash/user14MB@0x200000.bin",
+0xc20000f5:"/custom/flash/first4K@0-4095.bin",
 }
 # path2oh is reverse of oh2path, only file names
 path2oh={v:k for k,v in oh2path.items()}
@@ -311,6 +312,7 @@ custom_cur_list={
   0xc20000f2:('full16MB.bin',VFS_FILE,0,FLASHSIZE),
   0xc20000f3:('boot2MB@0-0x1FFFFF.bin',VFS_FILE,0,2*1<<20),
   0xc20000f4:('user14MB@0x200000.bin',VFS_FILE,0,14*1<<20),
+  0xc20000f5:('first4K@0-4095.bin',VFS_FILE,0,4096),
   },
 }
 
@@ -793,7 +795,7 @@ def SendObjectInfo(cnt): # 0x100C
     send_length=hdr.p3
     send_fullpath=oh2path[send_parent]+str_send_name
     if send_length<=0:
-      print("warning send length",send_length)
+      print("host send length",send_length)
       print("fullpath",send_fullpath)
     if send_fullpath in path2oh:
       current_send_handle=path2oh[send_fullpath]
