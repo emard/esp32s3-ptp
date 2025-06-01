@@ -92,25 +92,19 @@ PID&0xFF, PID>>8, # 10-11 PID
 0x01, # 17 bNumConfigurations: 1
 ])
 
-# USB configuration descriptor.
 _desc_cfg = bytes([
-#==============================================================================
 # Configuration Descriptor (CDC + PTP)
 # Original CDC length = 75 bytes
 # PTP Interface Descriptor = 9 bytes
 # PTP Bulk OUT Endpoint = 7 bytes
 # PTP Bulk IN Endpoint = 7 bytes
 # PTP Interrupt IN Endpoint = 7 bytes
-# Total PTP = 9 + 7 + 7 + 7 = 30 bytes
-# New wTotalLength = 75 (CDC) + 30 (PTP) = 105 bytes (0x69)
-# bNumInterfaces = 2 (CDC) + 1 (PTP) = 3
-#==============================================================================
-#--------------------------------------------------------------------------
-# Configuration Descriptor
-#--------------------------------------------------------------------------
+# Total MTP/PTP = 9 + 7 + 7 + 7 = 30 bytes
+# New wTotalLength = 75 (CDC) + 30 (MTP) = 105 bytes
+# bNumInterfaces = 2 (CDC) + 1 (MTP/PTP) = 3
 0x09, # bLength
 0x02, # bDescriptorType: CONFIGURATION
-105, 0x00, # wTotalLength: 105 bytes (0x69)
+105, 0x00, # wTotalLength: 105 bytes
 0x03, # bNumInterfaces: 3 (CDC_CCI, CDC_DCI, PTP)
 0x01, # bConfigurationValue
 0x00, # iConfiguration: (none)
@@ -171,7 +165,7 @@ _desc_cfg = bytes([
 0x02, # bmAttributes: Bulk
 0x40, 0x00, # wMaxPacketSize: 64 bytes
 0x00, # bInterval: (ignored for Bulk)
-# PTP/MTP Interface Descriptor.
+# PTP/MTP Interface Descriptor (bAlternateSetting 0)
 0x09, # 0 bLength
 0x04, # 1 bDescriptorType: interface
 0x02, # 2 bInterfaceNumber
@@ -241,8 +235,7 @@ SETSTATUS=const(2)
 GETSTATUS=const(3)
 status=bytearray([0,0,0,0,0,0])
 
-# global PTP session ID, Transaction ID, opcode
-sesid=0
+# global PTP Transaction ID
 txid=0
 
 # global sendobject (receive file) length
@@ -488,8 +481,7 @@ def in_hdr_data_ok(data):
   ep_cb[PTP_DATA_IN]=in_ok
 
 def OpenSession(cnt):
-  global sesid
-  sesid=hdr.p1
+  #sesid=hdr.p1 # not used
   in_hdr_ok()
 
 # event codes, more in libgphoto2 ptp.h
@@ -571,7 +563,6 @@ STORAGE_READ_ONLY_WITH_DELETE=const(2)
 
 def GetStorageInfo(cnt): # 0x1005
   storageid=hdr.p1
-  #print("storageid 0x%08x" % storageid)
   StorageType=STORAGE_FIXED_MEDIA
   FilesystemType=2
   AccessCapability=STORAGE_READ_WRITE
@@ -597,7 +588,6 @@ def GetStorageInfo(cnt): # 0x1005
 def GetObjectHandles(cnt): # 0x1007
   global cur_list
   storageid=hdr.p1
-  #print("storageid 0x%08x" % storageid)
   if storageid==0xFFFFFFFF:
     # return empty storage
     data=uint32_array([])
@@ -650,7 +640,6 @@ def GetObjectInfo(cnt): # 0x1008
         cur_list=custom_cur_list[this_parent]
       else: # vfs
         ls(oh2path[this_parent])
-  #print("objh=%08x" % objh)
   ObjectFormat=PTP_OFC_Text
   thumb_image_null=bytearray(26)
   assoc_seq_null=bytearray(10)
@@ -759,7 +748,6 @@ def DeleteObject(cnt): # 0x100B
     in_hdr_write_protected()
   else:
     ohdel(hdr.p1)
-    #print("deleted",fullpath)
     in_hdr_ok()
 
 def SendObjectInfo(cnt): # 0x100C
@@ -772,9 +760,7 @@ def SendObjectInfo(cnt): # 0x100C
     send_parent=hdr.p2
     if send_parent==0xffffffff:
       send_parent=0
-    #print("send_parent: 0x%x" % send_parent)
     send_parent_path=oh2path[send_parent]
-    #print("send dir path",send_parent_path)
     # prepare full buffer to read from host again
     # host will send another OUT
     usbd.submit_xfer(PTP_DATA_OUT, ptp_buf)
@@ -782,16 +768,11 @@ def SendObjectInfo(cnt): # 0x100C
     # we just have received data from host
     # host sends in advance file length to be sent
     send_objtype=hdr.h2
-    #print("send objtype 0x%04x" % send_objtype)
     send_name=get_ucs2_string(cnt[64:])
     str_send_name=decode_ucs2_string(send_name)[:-1].decode()
     name2addr(str_send_name)
-    #print("send name:", str_send_name)
     send_length=hdr.p3
     send_fullpath=oh2path[send_parent]+str_send_name
-    #if send_length<=0:
-    #  print("host send length",send_length)
-    #  print("fullpath",send_fullpath)
     if send_fullpath in path2oh:
       current_send_handle=path2oh[send_fullpath]
     else:
@@ -800,12 +781,10 @@ def SendObjectInfo(cnt): # 0x100C
       # bits 31:24 of new handle id
       current_send_handle=next_handle|(send_parent&0xFF000000)
       next_handle+=1
-      #str_send_name_p2h=str_send_name
       send_fullpath_h2p=send_fullpath
       vfstype=VFS_FILE
       if send_objtype==PTP_OFC_Directory: # new dir
         vfstype=VFS_DIR
-        #str_send_name_p2h+="/"
         send_fullpath_h2p+="/"
         os.mkdir(strip1dirlvl(send_fullpath))
       path2oh[send_fullpath_h2p]=current_send_handle
@@ -814,24 +793,10 @@ def SendObjectInfo(cnt): # 0x100C
         custom_cur_list[send_parent][current_send_handle]=(str_send_name,vfstype,0,send_length)
       else: # ==0 vfs
         cur_list[current_send_handle]=(str_send_name,vfstype,0,send_length)
-      #path2handle[send_parent_path][str_send_name_p2h]=current_send_handle
-      #handle2path[current_send_handle]=send_fullpath_h2p
     vfs_objtype=VFS_FILE # default is file
     if send_objtype==PTP_OFC_Directory:
       vfs_objtype=VFS_DIR # directory
-    #dir2handle[send_parent][current_send_handle]=(str_send_name,vfs_objtype,0,send_length)
-    #print("current send handle",current_send_handle)
-    # send OK response to host
-    hdr_ok()
-    # extend "OK" response with 3 addional 32-bit fields:
-    # storage_id, parend_id, object_id
-    hdr.len=24
-    hdr.p1=current_storid
-    hdr.p2=send_parent
-    hdr.p3=current_send_handle
-    #print(">",end="")
-    #print_hex(ptp_buf[:hdr.len])
-    usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:hdr.len])
+    in_end_sendobject(True)
 
 def close_sendobject()->bool:
   if send_parent>>24==0xc1: # fpga
@@ -847,8 +812,8 @@ def SendObject(cnt): # 0x100D
   global txid,send_length,remaining_send_length,addr,fd
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
-    # host will send another OUT command
-    # prepare full buffer to read again from host
+    # host will send OUT command again
+    # prepare full buffer to read from host
     usbd.submit_xfer(PTP_DATA_OUT, ptp_buf)
   if hdr.type==PTP_USB_CONTAINER_DATA: # 2
     # host has just sent data
@@ -860,7 +825,7 @@ def SendObject(cnt): # 0x100D
         #print_hexdump(hashlib.md5(cnt[12:]).digest())
       elif send_parent>>24==0xc2: # flash
         ecp5.flash_open()
-        # first packet is read in 4160=4096+64 bytes buffer
+        # read first packet in 4160=4096+64 bytes buffer
         # buf[0:12] header
         # buf[12:4108] 4096 bytes flash
         # buf[4108:4160] 52 bytes of next flash payload
@@ -894,8 +859,8 @@ def SendObject(cnt): # 0x100D
       ok=close_sendobject()
       in_end_sendobject(ok)
     else:
-      # host will send another OUT command
-      # prepare full buffer to read again from host
+      # host will send OUT command again
+      # prepare buffer to read from host
       if send_parent>>24==0xc1: # fpga
         ep_cb[PTP_DATA_OUT]=out_fpga
         usbd.submit_xfer(PTP_DATA_OUT,ptp_buf)
@@ -1045,8 +1010,6 @@ def in_get_file(xferred_bytes):
     remain_getobj_len=0
     fd.close()
     ep_cb[PTP_DATA_IN]=in_end_getobject
-  #print(">",end="")
-  #print_hexdump(ptp_buf[:packet_len])
   usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:packet_len])
 
 def in_get_flash(xferred_bytes):
