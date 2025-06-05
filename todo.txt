@@ -14,11 +14,12 @@
     bistream file with send_length=0
     few more attempt of the same file then it works
     half-fixed: igonring send_length=0 to custom fs
-[ ] fix errors writing file to root of custom fs
+[x] fix errors writing file to root of custom fs
+[ ] prevent creating folders in custom fs
 [ ] switch PTP/MTP mode with or bConfiguration
     or bAlternateSetting
     echo 1 > /sys/bus/usb/devices/1-5/bConfiguration
     echo 1 > /sys/bus/usb/devices/1-5/1-5\:1.2/bAlternateSetting
     seems currently not supported by esp32s3 usb
-[ ] switch PTP/MTP mode with usb-serial commandline setup
+[x] switch PTP/MTP mode with usb-serial commandline setup
     for example writing ptpconf.py file
