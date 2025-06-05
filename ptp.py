@@ -6,8 +6,9 @@
 # file r/w works on gvfs with PTP:
 # if interface is named "MTP", host uses MTP protocol.
 # for any other name host uses PTP protocol.
+import ptpconf
 #PROTOCOL=b"PTP" # libgphoto2, windows and linux
-PROTOCOL=b"MTP" # libmtp, windows and apple, linux write but not read
+#PROTOCOL=b"MTP" # libmtp, windows and apple, linux write but not read
 
 # protocol info:
 # https://github.com/gphoto/libgphoto2/tree/master/camlibs/ptp2
@@ -203,7 +204,7 @@ _desc_strs = {
 1: MANUFACTURER,
 2: PRODUCT,
 3: SERIAL,
-4: PROTOCOL,
+4: ptpconf.PROTOCOL,
 }
 # USB constants for bmRequestType.
 USB_REQ_RECIP_INTERFACE=const(1)
@@ -784,6 +785,9 @@ def SendObjectInfo(cnt): # 0x100C
       send_fullpath_h2p=send_fullpath
       vfstype=VFS_FILE
       if send_objtype==PTP_OFC_Directory: # new dir
+        if current_storid==STORID_CUSTOM:
+          in_end_sendobject(False)
+          return
         vfstype=VFS_DIR
         send_fullpath_h2p+="/"
         os.mkdir(strip1dirlvl(send_fullpath))
