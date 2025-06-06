@@ -541,13 +541,13 @@ def GetStorageIDs(cnt): # 0x1004
   data=uint32_array(STORAGE)
   in_hdr_data_ok(data)
 
-# PTP_si_StorageType               0
-# PTP_si_FilesystemType            2
-# PTP_si_AccessCapability          4
-# PTP_si_MaxCapability             6
-# PTP_si_FreeSpaceInBytes         14
-# PTP_si_FreeSpaceInImages        22
-# PTP_si_StorageDescription       26
+# PTP_si_StorageType         0
+# PTP_si_FilesystemType      2
+# PTP_si_AccessCapability    4
+# PTP_si_MaxCapability       6
+# PTP_si_FreeSpaceInBytes   14
+# PTP_si_FreeSpaceInImages  22
+# PTP_si_StorageDescription 26
 
 # Storage Types
 STORAGE_FIXED_RAM=const(1)
@@ -605,9 +605,9 @@ def GetObjectHandles(cnt): # 0x1007
   if storageid==STORID_CUSTOM:
     cur_list=custom_cur_list[dirhandle]
   data=uint32_array(cur_list)
-  # FIXME when directory has many entries > 256 data
-  # would not fit in one 4160 byte block
-  # block continuation neede
+  # FIXME when directory has >1000 files/subdirs
+  # data would not fit in one 4160 byte block.
+  # TODO block continuation.
   in_hdr_data_ok(data)
 
 # PTP_oi_StorageID		 0
