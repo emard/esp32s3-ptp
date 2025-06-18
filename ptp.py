@@ -854,6 +854,8 @@ def SendObject(cnt): # 0x100D
         ep_cb[PTP_DATA_OUT]=out_cmd
         in_end_sendobject(True)
         return
+      else:
+        fd=open(strip1dirlvl(send_fullpath),"wb")
     # if host has sent all bytes it promised to send
     # report it to the host that file is complete
     if remaining_send_length<=0:
