@@ -885,6 +885,43 @@ def SendObject(cnt): # 0x100D
 def CloseSession(cnt): # 0x1007
   in_hdr_ok()
 
+
+# MTP extensions
+PTP_OPC_ObjectFileName=const(0xDC07)
+
+def GetObjectPropDesc(cnt): # 0x9802
+  in_hdr_data_ok(uint16_array([PTP_OPC_ObjectFileName,]))
+
+def SetObjectPropValue(cnt): # 0x9804
+  global txid,send_name,current_send_handle,opc
+  txid=hdr.txid
+  if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
+    current_send_handle=hdr.p1
+    opc=hdr.p2
+    usbd.submit_xfer(PTP_DATA_OUT,ptp_buf)
+  if hdr.type==PTP_USB_CONTAINER_DATA: # 2
+    if opc==PTP_OPC_ObjectFileName:
+      # we just have received filename from host
+      send_name=get_ucs2_string(cnt[12:])
+      new_name=decode_ucs2_string(send_name)[:-1].decode()
+      if current_send_handle in oh2path:
+        fullpath=oh2path[current_send_handle]
+        ospath=strip1dirlvl(fullpath)
+        endchar=""
+        if ospath[-1]=="/":
+          ospath=ospath[:-1]
+          endchar="/"
+        parent_oh=parent(current_send_handle)
+        p=oh2path[parent_oh]
+        osparent=strip1dirlvl(p)
+        newpath=osparent+new_name
+        os.rename(ospath,newpath)
+        oh2path[current_send_handle]="/vfs"+newpath+endchar
+        path2oh["/vfs"+newpath+endchar]=current_send_handle
+        del(path2oh[fullpath])
+        cur_list[current_send_handle]=(new_name,)+cur_list[current_send_handle][1:]
+      in_hdr_ok()
+
 # callback functions for opcodes
 # more in libgphoto2 ptp.h and ptp.c
 ptp_opcode_cb = {
@@ -899,6 +936,8 @@ ptp_opcode_cb = {
   0x100B:DeleteObject,
   0x100C:SendObjectInfo,
   0x100D:SendObject,
+  0x9802:GetObjectPropDesc,
+  0x9804:SetObjectPropValue,
   #0x1012:SetObjectProtection,
 }
 
