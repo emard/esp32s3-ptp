@@ -333,6 +333,15 @@ PTP_RC_SpecificationByFormatUnsupported=const(0x2014)
 def strip1dirlvl(path:str)->str:
   return path[path.find("/",1):]
 
+# helper function to strip leading "/vfs" and tail "/"
+def fullpath2ospath(a):
+  x=strip1dirlvl(a)
+  e=""
+  if x[-1]=="/":
+    x=x[:-1]
+    e="/"
+  return (x,e)
+
 # list directory items
 # update internal cache path -> object id
 # cache obtained list of objects for later use
@@ -882,35 +891,47 @@ def SendObject(cnt): # 0x100D
 #  # hdr.p2 0:rw 1:ro
 #  in_hdr_ok()
 
-# helper functions to strip leading "/vfs" and tail "/"
-def fullpath2ospath(a):
-  x=strip1dirlvl(a)
-  e=""
-  if x[-1]=="/":
-    x=x[:-1]
-    e="/"
-  return (x,e)
+# rename/move file/dir a->b in internal name cache
+def rename(a,b):
+  # rename object itself
+  aoh=path2oh[a]
+  oh2path[aoh]=b
+  path2oh[b]=aoh
+  del(path2oh[a])
+  # rename object's subtree
+  for key,value in oh2path.items():
+    if value.startswith(a):
+      oh2path[key]=b+value[len(a):]
+  for key,value in path2oh.items():
+    if key.startswith(a):
+      del(path2oh[key])
+      path2oh[b+key[len(a):]]=value
 
 def MoveObject(cnt): # 0x1019
   global txid
   txid=hdr.txid
-  print("MoveObject")
   moving_oh=hdr.p1
-  storageid=hdr.p2
   toparent_oh=hdr.p3
+  # moving allowed only in VFS
+  if hdr.p2!=STORID_VFS or moving_oh>>28!=0 or toparent_oh>>28!=0:
+    in_hdr_write_protected()
+    return
   moving_fullpath=oh2path[moving_oh]
   toparent_fullpath=oh2path[toparent_oh]
-  mv_os,mv_endchar = fullpath2ospath(moving_fullpath)
+  mv_os,mv_endchar=fullpath2ospath(moving_fullpath)
   mv_basename=mv_os[mv_os[:-1].rfind("/")+1:]
-  todir_os,todir_endchar = fullpath2ospath(toparent_fullpath)
+  todir_os,todir_endchar=fullpath2ospath(toparent_fullpath)
   to_os=todir_os+"/"+mv_basename
-  print(mv_os,to_os)
-  # update internal path tracking
+  to_fullpath=toparent_fullpath+mv_basename+mv_endchar
+  # rename in vfs
+  os.rename(mv_os,to_os)
+  # rename in internal path cache
+  rename(moving_fullpath,to_fullpath)
+  ls(to_fullpath) # update cur_list
   in_hdr_ok()
 
 def CloseSession(cnt): # 0x1007
   in_hdr_ok()
-
 
 # MTP extensions
 PTP_OPC_ObjectFileName=const(0xDC07)
@@ -927,24 +948,21 @@ def SetObjectPropValue(cnt): # 0x9804
     usbd.submit_xfer(PTP_DATA_OUT,ptp_buf)
   if hdr.type==PTP_USB_CONTAINER_DATA: # 2
     if opc==PTP_OPC_ObjectFileName:
+      if current_send_handle>>28!=0: # not in VFS
+        in_hdr_write_protected()
+        return
       # we just have received filename from host
       send_name=get_ucs2_string(cnt[12:])
       new_name=decode_ucs2_string(send_name)[:-1].decode()
       if current_send_handle in oh2path:
         fullpath=oh2path[current_send_handle]
-        ospath=strip1dirlvl(fullpath)
-        endchar=""
-        if ospath[-1]=="/":
-          ospath=ospath[:-1]
-          endchar="/"
+        ospath,endchar=fullpath2ospath(fullpath)
         parent_oh=parent(current_send_handle)
         p=oh2path[parent_oh]
         osparent=strip1dirlvl(p)
         newpath=osparent+new_name
         os.rename(ospath,newpath)
-        oh2path[current_send_handle]="/vfs"+newpath+endchar
-        path2oh["/vfs"+newpath+endchar]=current_send_handle
-        del(path2oh[fullpath])
+        rename(fullpath,"/vfs"+newpath+endchar)
         cur_list[current_send_handle]=(new_name,)+cur_list[current_send_handle][1:]
       in_hdr_ok()
 
