@@ -882,6 +882,32 @@ def SendObject(cnt): # 0x100D
 #  # hdr.p2 0:rw 1:ro
 #  in_hdr_ok()
 
+# helper functions to strip leading "/vfs" and tail "/"
+def fullpath2ospath(a):
+  x=strip1dirlvl(a)
+  e=""
+  if x[-1]=="/":
+    x=x[:-1]
+    e="/"
+  return (x,e)
+
+def MoveObject(cnt): # 0x1019
+  global txid
+  txid=hdr.txid
+  print("MoveObject")
+  moving_oh=hdr.p1
+  storageid=hdr.p2
+  toparent_oh=hdr.p3
+  moving_fullpath=oh2path[moving_oh]
+  toparent_fullpath=oh2path[toparent_oh]
+  mv_os,mv_endchar = fullpath2ospath(moving_fullpath)
+  mv_basename=mv_os[mv_os[:-1].rfind("/")+1:]
+  todir_os,todir_endchar = fullpath2ospath(toparent_fullpath)
+  to_os=todir_os+"/"+mv_basename
+  print(mv_os,to_os)
+  # update internal path tracking
+  in_hdr_ok()
+
 def CloseSession(cnt): # 0x1007
   in_hdr_ok()
 
@@ -936,6 +962,7 @@ ptp_opcode_cb = {
   0x100B:DeleteObject,
   0x100C:SendObjectInfo,
   0x100D:SendObject,
+  0x1019:MoveObject,
   0x9802:GetObjectPropDesc,
   0x9804:SetObjectPropValue,
   #0x1012:SetObjectProtection,
