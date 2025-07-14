@@ -29,3 +29,4 @@
     fix needed: after reading from flash
     respond "OK" with transfer length
     as hdr.p1 parameter
+[ ] MTP support copy file directly from vfs to custom
