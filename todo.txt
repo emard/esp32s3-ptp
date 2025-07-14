@@ -30,3 +30,6 @@
     respond "OK" with transfer length
     as hdr.p1 parameter
 [ ] MTP support copy file directly from vfs to custom
+[ ] test on all platform if "GetPartialObject" is
+    sufficient without "GetObject". Code can be
+    simplified by removing "GetObject" support.
