@@ -139,6 +139,22 @@ It is because gnome tries to open USB device
 from gphoto2 while same device is already
 claimed by MTP.
 
+As issue #801 with subject
+"gvfs MTP can write file but can't read it"
+it is reported to
+https://gitlab.gnome.org/GNOME/gvfs/-/issues/801
+
+It is because on linux gvfs MTP first tries
+to read file using 0x101B GetPartialObject
+and if it isn't implemented it should
+use 0x1009 GetObject. If 0x101B is not supported,
+then gvfs mtp mode tries to claim device with libgphoto2
+which not possible because device is already
+claimed with libmtp() so this attempt to read fails.
+
+Early support for 0x101B GetPartialObject is here
+but it works only for small files under 4K length.
+
 Getting debug logs from linux gnome
 
 See https://wiki.gnome.org/Projects(2f)gvfs(2f)debugging.html
