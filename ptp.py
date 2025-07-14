@@ -695,7 +695,7 @@ def GetObjectInfo(cnt): # 0x1008
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     in_hdr_data_ok(data)
 
-def GetObject(cnt): # 0x1009
+def GetObject(cnt): # 0x1009 GetObject and 0x101B GetPartialObject
   global txid,remain_getobj_len,fd,addr
   txid=hdr.txid
   if hdr.p1 in oh2path:
@@ -704,6 +704,15 @@ def GetObject(cnt): # 0x1009
       fd=open(strip1dirlvl(fullpath),"rb")
       filesize=fd.seek(0,2)
       fd.seek(0)
+      if hdr.code==0x101B: # GetPartialObject
+        start=hdr.p2
+        max=hdr.p3
+        print("partial start=%d max=%d" % (start,max))
+        fd.seek(start)
+        if filesize-start>max:
+          filesize=max
+        else:
+          filesize-=start
       len1st=fd.readinto(memoryview(ptp_buf)[12:])
       # file data after 12-byte header
       length=12+len1st
@@ -934,37 +943,43 @@ def CloseSession(cnt): # 0x1007
   in_hdr_ok()
 
 # MTP extensions
-PTP_OPC_ObjectFileName=const(0xDC07)
+
+def Set_PTP_OPC_ObjectFileName(cnt): # 0xDC07
+  global current_send_handle
+  if current_send_handle>>28!=0: # not in VFS
+    in_hdr_write_protected()
+    return
+  # we just have received filename from host
+  send_name=get_ucs2_string(cnt[12:])
+  new_name=decode_ucs2_string(send_name)[:-1].decode()
+  if current_send_handle in oh2path:
+    fullpath=oh2path[current_send_handle]
+    ospath,endchar=fullpath2ospath(fullpath)
+    parent_oh=parent(current_send_handle)
+    p=oh2path[parent_oh]
+    osparent=strip1dirlvl(p)
+    newpath=osparent+new_name
+    os.rename(ospath,newpath)
+    rename(fullpath,"/vfs"+newpath+endchar)
+    cur_list[current_send_handle]=(new_name,)+cur_list[current_send_handle][1:]
+  in_hdr_ok()
+
+mtp_set_propvalue_data_cb = {
+  0xDC07:Set_PTP_OPC_ObjectFileName,
+}
 
 def GetObjectPropDesc(cnt): # 0x9802
-  in_hdr_data_ok(uint16_array([PTP_OPC_ObjectFileName,]))
+  in_hdr_data_ok(uint16_array(mtp_set_propvalue_data_cb))
 
 def SetObjectPropValue(cnt): # 0x9804
-  global txid,send_name,current_send_handle,opc
+  global txid,current_send_handle,opc
   txid=hdr.txid
   if hdr.type==PTP_USB_CONTAINER_COMMAND: # 1
     current_send_handle=hdr.p1
     opc=hdr.p2
     usbd.submit_xfer(PTP_DATA_OUT,ptp_buf)
   if hdr.type==PTP_USB_CONTAINER_DATA: # 2
-    if opc==PTP_OPC_ObjectFileName:
-      if current_send_handle>>28!=0: # not in VFS
-        in_hdr_write_protected()
-        return
-      # we just have received filename from host
-      send_name=get_ucs2_string(cnt[12:])
-      new_name=decode_ucs2_string(send_name)[:-1].decode()
-      if current_send_handle in oh2path:
-        fullpath=oh2path[current_send_handle]
-        ospath,endchar=fullpath2ospath(fullpath)
-        parent_oh=parent(current_send_handle)
-        p=oh2path[parent_oh]
-        osparent=strip1dirlvl(p)
-        newpath=osparent+new_name
-        os.rename(ospath,newpath)
-        rename(fullpath,"/vfs"+newpath+endchar)
-        cur_list[current_send_handle]=(new_name,)+cur_list[current_send_handle][1:]
-      in_hdr_ok()
+    mtp_set_propvalue_data_cb[opc](cnt)
 
 # callback functions for opcodes
 # more in libgphoto2 ptp.h and ptp.c
@@ -981,6 +996,7 @@ ptp_opcode_cb = {
   0x100C:SendObjectInfo,
   0x100D:SendObject,
   0x1019:MoveObject,
+  0x101B:GetObject, # GetPartialObject
   0x9802:GetObjectPropDesc,
   0x9804:SetObjectPropValue,
   #0x1012:SetObjectProtection,
@@ -1042,7 +1058,7 @@ def _open_itf_cb(interface_desc_view):
 # OUT: host to device
 # callbacks when OUT is done
 def out_cmd(xferred_bytes:int):
-  #print("0x%04x %s"%(hdr.code,ptp_opcode_cb[hdr.code].__name__))
+  print("0x%04x %s"%(hdr.code,ptp_opcode_cb[hdr.code].__name__))
   #print("<",end="")
   #print_hex(ptp_buf[:xferred_bytes])
   ptp_opcode_cb[hdr.code](ptp_buf[:xferred_bytes])
