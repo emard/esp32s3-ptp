@@ -25,3 +25,7 @@
     for example writing ptpconf.py file
 [ ] PTP linux file rename: done successful but
     a pop up window stays open with option to cancel rename
+[ ] The MTP opcode 0x101B (GetPartialObject)
+    fix needed: after reading from flash
+    respond "OK" with transfer length
+    as hdr.p1 parameter
