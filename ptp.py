@@ -695,32 +695,33 @@ def GetObjectInfo(cnt): # 0x1008
     data=hdr1+thumb_image_null+hdr2+assoc_seq_null+name+create+modify+b"\0"
     in_hdr_data_ok(data)
 
+PTP_GetPartialObject=const(0x101B)
+
 def GetObject(cnt): # 0x1009 GetObject and 0x101B GetPartialObject
-  global txid,remain_getobj_len,fd,addr,opcode,getpartialsize,get_end_cb
+  global txid,remain_getobj_len,fd,addr,getsize,get_end_cb
   txid=hdr.txid
   if hdr.p1 in oh2path:
+    get_end_cb=in_end_getobject
+    if hdr.code==PTP_GetPartialObject:
+      get_end_cb=in_end_getpartialobject
     fullpath=oh2path[hdr.p1]
     if fullpath.startswith("/"+STORAGE[STORID_VFS].decode()):
       fd=open(strip1dirlvl(fullpath),"rb")
       filesize=fd.seek(0,2)
       fd.seek(0)
-      opcode=hdr.code
-      get_end_cb=in_end_getobject
-      if opcode==0x101B: # GetPartialObject
+      getsize=filesize
+      if hdr.code==PTP_GetPartialObject:
         start=hdr.p2
         max=hdr.p3
         #print("partial start=%d max=%d" % (start,max))
         fd.seek(start)
-        if filesize-start>max:
-          filesize=max
-        else:
-          filesize-=start
-        get_end_cb=in_end_getpartialobject
-      getpartialsize=filesize
+        getsize=filesize-start
+        if getsize>max:
+          getsize=max
       len1st=fd.readinto(memoryview(ptp_buf)[12:])
       # file data after 12-byte header
       length=12+len1st
-      remain_getobj_len=filesize-len1st
+      remain_getobj_len=getsize-len1st
       ep_cb[PTP_DATA_IN]=in_get_file
       if remain_getobj_len<=0:
         remain_getobj_len=0
@@ -729,30 +730,41 @@ def GetObject(cnt): # 0x1009 GetObject and 0x101B GetPartialObject
     if fullpath.startswith("/"+STORAGE[STORID_CUSTOM].decode()):
       if hdr.p1>>24==0xc1 or hdr.p1>>24==0xc0: # fpga or readme
         msg=readme_txt
-        filesize=len(msg)
-        length=12+filesize
+        getsize=len(msg)
+        length=12+getsize
         remain_getobj_len=0
         memoryview(ptp_buf)[12:12+len(msg)]=msg
-        ep_cb[PTP_DATA_IN]=in_end_getobject
+        ep_cb[PTP_DATA_IN]=get_end_cb
       if hdr.p1>>24==0xc2: # flash
         name2addr(fullpath)
         filesize=addr_last+1-addr
-        if filesize<4096:
-          len1st=filesize
+        getsize=filesize
+        #print("opcode=%04X" % hdr.code)
+        if hdr.code==PTP_GetPartialObject:
+          start=hdr.p2
+          max=hdr.p3
+          #print("partial start=%d max=%d" % (start,max))
+          addr+=start
+          getsize=filesize-start
+          if getsize>max:
+            getsize=max
+        #print("addr=0x%08X addr_last=0x%08X getsize=%d" % (addr,addr_last,getsize))
+        if getsize<4096:
+          len1st=getsize
         else:
           len1st=4096
         length=12+len1st
-        remain_getobj_len=filesize-len1st
+        remain_getobj_len=getsize-len1st
         ecp5.flash_open()
         ecp5.flash_read_block(memoryview(ptp_buf)[12:12+len1st],addr)
         addr+=len1st
         if remain_getobj_len<=0:
           remain_getobj_len=0
           ecp5.flash_close()
-          ep_cb[PTP_DATA_IN]=in_end_getobject
+          ep_cb[PTP_DATA_IN]=get_end_cb
         else:
           ep_cb[PTP_DATA_IN]=in_get_flash
-    hdr.len=12+filesize
+    hdr.len=12+getsize
     hdr.type=PTP_USB_CONTAINER_DATA
   usbd.submit_xfer(PTP_DATA_IN, memoryview(ptp_buf)[:length])
 
@@ -1000,7 +1012,7 @@ ptp_opcode_cb = {
   0x100C:SendObjectInfo,
   0x100D:SendObject,
   0x1019:MoveObject,
-  0x101B:GetObject, # GetPartialObject
+  PTP_GetPartialObject:GetObject,
   0x9802:GetObjectPropDesc,
   0x9804:SetObjectPropValue,
   #0x1012:SetObjectProtection,
@@ -1113,17 +1125,17 @@ def in_end_getobject(xferred_bytes):
   usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:hdr.len])
 
 def in_end_getpartialobject(xferred_bytes):
-  global getpartialsize
-  #print("endpartial ok p1=",getpartialsize)
+  global getsize
+  #print("endpartial ok p1=0x%08X" % getsize)
   hdr_ok()
   hdr.txid=txid
-  hdr.p1=getpartialsize
+  hdr.p1=getsize
   hdr.len=16
   ep_cb[PTP_DATA_IN]=in_empty
   usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:hdr.len])
 
 def in_get_file(xferred_bytes):
-  global remain_getobj_len,fd,opcode,get_end_cb
+  global remain_getobj_len,fd,get_end_cb
   if remain_getobj_len>len(ptp_buf):
     packet_len=fd.readinto(ptp_buf)
   else:
@@ -1137,14 +1149,16 @@ def in_get_file(xferred_bytes):
   usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:packet_len])
 
 def in_get_flash(xferred_bytes):
-  global remain_getobj_len,addr
+  global remain_getobj_len,addr,get_end_cb
   ecp5.flash_read_block(memoryview(ptp_buf)[:4096],addr)
+  #print("in_get_flash addr=0x%08X 4096" % addr)
   addr+=4096
   remain_getobj_len-=4096
+  #print("remain",remain_getobj_len)
   if remain_getobj_len<=0:
     remain_getobj_len=0
     ecp5.flash_close()
-    ep_cb[PTP_DATA_IN]=in_end_getobject
+    ep_cb[PTP_DATA_IN]=get_end_cb
   usbd.submit_xfer(PTP_DATA_IN,memoryview(ptp_buf)[:4096])
 
 # not used
