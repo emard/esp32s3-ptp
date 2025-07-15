@@ -33,3 +33,13 @@
 [ ] test on all platform if "GetPartialObject" is
     sufficient without "GetObject". Code can be
     simplified by removing "GetObject" support.
+[ ] MTP flash read doesn't work.
+    Host uses 0x1009 GetObject to read flash for example 2MB.
+    Protocol sends all blocks of 2MB but
+    requested flash file of 2MB is received as 4K size.
+    only problem visible in protocol is that host doesn't
+    send last IN command to receive in_ok().
+    The same 0x1009 works OK in PTP mode.
+[ ] MTP gvfs copy from filesystem is slow or doesn't work
+    need to debug print to see what is going on
+    cp /run/user/$UID/gvfs/mtp\:host\=iManufacturer_iProduct_00000000/custom/flash/boot2MB\@0-0x1FFFFF.bin .
